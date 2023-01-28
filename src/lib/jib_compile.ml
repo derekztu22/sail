@@ -164,7 +164,10 @@ let ctx_get_extern id ctx =
   | Some (None, _, _) ->
      Reporting.unreachable (id_loc id) __POS__ ("Tried to get extern information for non-extern function " ^ string_of_id id)
   | None -> Env.get_extern id ctx.tc_env "c"
-    
+
+let ctx_has_val_spec id ctx =
+  Bindings.mem id ctx.valspecs || Bindings.mem id (Env.get_val_specs ctx.tc_env)
+
 let initial_ctx env effect_info =
   let initial_valspecs = [
       (mk_id "size_itself_int", (Some "size_itself_int", [CT_lint], CT_lint));
@@ -545,7 +548,7 @@ let rec compile_aval l ctx = function
      let gs = ngensym () in
      let mk_cons aval =
        let setup, cval, cleanup = compile_aval l ctx aval in
-       setup @ [iextern l (CL_id (gs, CT_list ctyp)) (mk_id "cons", [ctyp]) [cval; V_id (gs, CT_list ctyp)]] @ cleanup
+       setup @ [iextern l (CL_id (gs, CT_list ctyp)) (mk_id "sail_cons", [ctyp]) [cval; V_id (gs, CT_list ctyp)]] @ cleanup
      in
      [idecl l (CT_list ctyp) gs]
      @ List.concat (List.map mk_cons (List.rev avals)),
@@ -1453,7 +1456,7 @@ let compile_funcl ctx id pat guard exp =
 
   (* Optimize and compile the expression to ANF. *)
   let aexp = C.optimize_anf ctx (no_shadow (IdSet.union (pat_ids pat) !guard_bindings) (anf exp)) in
-  
+
   let setup, call, cleanup = compile_aexp ctx aexp in
   let destructure, destructure_cleanup =
     compiled_args |> List.map snd |> combine_destructure_cleanup |> fix_destructure (id_loc id) fundef_label
@@ -1623,8 +1626,11 @@ let callgraph cdefs =
 
 let mangle_mono_id id ctx ctyps =
   append_id id ("<" ^ Util.string_of_list "," (mangle_string_of_ctyp ctx) ctyps ^ ">")
- 
-let rec specialize_functions ctx cdefs =
+
+(* The specialized calls argument keeps track of functions we have
+   already specialized, so we don't accidentally specialize them twice
+   in a future round of specialization *)
+let rec specialize_functions ?(specialized_calls=ref IdSet.empty) ctx cdefs =
   let polymorphic_functions =
     Util.map_filter (function
         | CDEF_spec (id, _, param_ctyps, ret_ctyp) ->
@@ -1659,11 +1665,15 @@ let rec specialize_functions ctx cdefs =
        let tyargs = List.fold_left (fun set ctyp -> KidSet.union (ctyp_vars ctyp) set) KidSet.empty (ret_ctyp :: param_ctyps) in
        spec_tyargs := Bindings.add id tyargs !spec_tyargs;
        let specialized_specs =
-         List.map (fun instantiation ->
-             let substs = List.fold_left2 (fun substs tyarg ty -> KBindings.add tyarg ty substs) KBindings.empty (KidSet.elements tyargs) instantiation in
-             let param_ctyps = List.map (subst_poly substs) param_ctyps in
-             let ret_ctyp = subst_poly substs ret_ctyp in
-             CDEF_spec (mangle_mono_id id ctx instantiation, extern, param_ctyps, ret_ctyp)
+         Util.map_filter (fun instantiation ->
+             let specialized_id = mangle_mono_id id ctx instantiation in
+             if not (IdSet.mem specialized_id !specialized_calls) then (
+               let substs = List.fold_left2 (fun substs tyarg ty -> KBindings.add tyarg ty substs) KBindings.empty (KidSet.elements tyargs) instantiation in
+               let param_ctyps = List.map (subst_poly substs) param_ctyps in
+               let ret_ctyp = subst_poly substs ret_ctyp in
+               Some (CDEF_spec (specialized_id, extern, param_ctyps, ret_ctyp))
+             ) else
+               None
            ) (CTListSet.elements (Bindings.find id !monomorphic_calls))
        in
        let ctx =
@@ -1678,10 +1688,15 @@ let rec specialize_functions ctx cdefs =
     | (CDEF_fundef (id, heap_return, params, body) as orig_cdef) :: cdefs when Bindings.mem id !monomorphic_calls ->
        let tyargs = Bindings.find id !spec_tyargs in
        let specialized_fundefs =
-         List.map (fun instantiation ->
-             let substs = List.fold_left2 (fun substs tyarg ty -> KBindings.add tyarg ty substs) KBindings.empty (KidSet.elements tyargs) instantiation in
-             let body = List.map (map_instr_ctyp (subst_poly substs)) body in
-             CDEF_fundef (mangle_mono_id id ctx instantiation, heap_return, params, body)
+         Util.map_filter (fun instantiation ->
+             let specialized_id = mangle_mono_id id ctx instantiation in
+             if not (IdSet.mem specialized_id !specialized_calls) then (
+               specialized_calls := IdSet.add specialized_id !specialized_calls;
+               let substs = List.fold_left2 (fun substs tyarg ty -> KBindings.add tyarg ty substs) KBindings.empty (KidSet.elements tyargs) instantiation in
+               let body = List.map (map_instr_ctyp (subst_poly substs)) body in
+               Some (CDEF_fundef (specialized_id, heap_return, params, body))
+             ) else
+               None
            ) (CTListSet.elements (Bindings.find id !monomorphic_calls))
        in
        specialize_fundefs ctx (orig_cdef :: specialized_fundefs @ prior) cdefs
@@ -1723,7 +1738,7 @@ let rec specialize_functions ctx cdefs =
   if IdSet.is_empty (IdSet.diff polymorphic_functions unreachable_polymorphic_functions) then
     cdefs, ctx
   else
-    specialize_functions ctx cdefs
+    specialize_functions ~specialized_calls:specialized_calls ctx cdefs
 
 let map_structs_and_variants f = function
   | (CT_lint | CT_fint _ | CT_constant _ | CT_lbits _ | CT_fbits _ | CT_sbits _ | CT_bit | CT_unit
@@ -1892,7 +1907,7 @@ let make_calls_precise ctx cdefs =
     match call with
     | I_aux (I_funcall (clexp, extern, (id, ctyp_args), args), ((_, l) as aux)) as instr ->
        begin match get_function_typ id with
-       | None when string_of_id id = "cons" ->
+       | None when string_of_id id = "sail_cons" ->
           begin match ctyp_args, args with
           | ([ctyp_arg], [hd_arg; tl_arg]) ->
              if not (ctyp_equal (cval_ctyp hd_arg) ctyp_arg) then
