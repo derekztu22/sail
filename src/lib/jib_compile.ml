@@ -782,7 +782,7 @@ let rec compile_aexp ctx (AE_aux (aexp_aux, env, l)) =
      let num_cases = List.length cases in
      let branch_id, on_reached = coverage_branch_reached l in
      let case_return_id = ngensym () in
-     let finish_match_label = label "finish_match_" in
+     let finish_match_label = label "finish_match" in
      let compile_case (apat, guard, body) =
        let case_label = label "case_" in
        if is_dead_aexp body then (
