@@ -72,6 +72,12 @@ http://www.cl.cam.ac.uk/~pes20/sail/.
     (libsail (= :version))))
 
 (package
+  (name sail_mlir_backend)
+  (synopsis "Sail to MLIR translation")
+  (depends
+    (libsail (= :version))))
+
+(package
   (name sail_smt_backend)
   (synopsis "Sail to C translation")
   (depends
@@ -120,6 +126,7 @@ http://www.cl.cam.ac.uk/~pes20/sail/.
     (sail_manifest (and (= :version) :build))
     (sail_ocaml_backend (and (= :version) :post))
     (sail_c_backend (and (= :version) :post))
+    (sail_mlir_backend (and (= :version) :post))
     (sail_smt_backend (and (= :version) :post))
     (sail_lem_backend (and (= :version) :post))
     (sail_coq_backend (and (= :version) :post))
