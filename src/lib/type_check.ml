@@ -1951,6 +1951,9 @@ let strip_def def =
   map_def_annot (fun (l, tannot) -> (l, untyped_annot tannot)) def |> map_def_def_annot strip_def_annot
 let strip_ast ast = { ast with defs = List.map strip_def ast.defs }
 
+let strip_mlirpat : 'a. 'a mlirpat -> unit mlirpat = function mlirpat -> map_mlirpat_annot (fun (l, _) -> (l, ())) mlirpat
+let strip_mlir_pexp : 'a. 'a mlir_pexp -> unit mlir_pexp = function mlir_pexp -> map_mlir_pexp_annot (fun (l, _) -> (l, ())) mlir_pexp
+
 (* A L-expression can either be declaring new variables, or updating existing variables, but never a mix of the two *)
 type lexp_assignment_type = Declaration | Update
 
@@ -2606,6 +2609,21 @@ and check_case env pat_typ pexp typ =
       | _ -> raise typ_exn
     )
 
+and check_mlirlit env (MLIRLit_aux (mlirlit_aux, (l, ())) as mlirlit : unit mlirlit) typ =
+  let annot_mlirlit mlirlit typ' = MLIRLit_aux(mlirlit, (l, mk_expected_tannot env typ' (Some typ))) in
+  match mlirlit_aux with
+  | MLIRLit_string str ->
+    annot_mlirlit(MLIRLit_string str) typ
+
+and check_mliratt env (MLIRatt_aux (mliratt_aux, (l, ())) as mliratt : unit mliratt) typ =
+  let annot_mliratt mliratt typ' = MLIRatt_aux(mliratt, (l, mk_expected_tannot env typ' (Some typ))) in
+  match mliratt_aux with
+  | MLIRatt_id id ->
+    annot_mliratt(MLIRatt_id id) typ
+  | MLIRatt_ctor (id, id1, mlirlit) ->
+    let checked_mlirlit = check_mlirlit env mlirlit typ in
+    annot_mliratt(MLIRatt_ctor (id, id1, checked_mlirlit)) typ
+
 and check_mpexp other_env env mpexp typ =
   let mpat, guard, (l, _) = destruct_mpexp mpexp in
   match bind_mpat false other_env env mpat typ with
@@ -2640,6 +2658,42 @@ and expect_subtype env (E_aux (_, (l, _)) as annotated_exp) typ =
   typ_debug (lazy ("Expect subtype: from " ^ string_of_typ (typ_of annotated_exp) ^ " to " ^ string_of_typ typ));
   subtyp l env (typ_of annotated_exp) typ;
   add_expected annotated_exp
+
+and check_mlir_pexp other_env env mlir_pexp typ =
+  let mlirpat,guard,exp,((l,_) as annot) = destruct_mlir_pexp mlir_pexp in
+  match bind_mlirpat false other_env env mlirpat typ with
+  | checked_mlirpat, env, guards ->
+     let guard = match guard, guards with
+       | None, h::t -> Some (h,t)
+       | Some x, l -> Some (x,l)
+       | None, [] -> None
+     in
+     let guard = match guard with
+       | Some (h,t) ->
+          Some (List.fold_left (fun acc guard -> mk_exp (E_app_infix (acc, mk_id "&", guard))) h t)
+       | None -> None
+     in
+     let checked_guard, _ = match guard with
+       | None -> None, env
+       | Some guard ->
+          let checked_guard = check_exp env guard bool_typ in
+          Some checked_guard, env
+     in
+     let checked_exp = check_exp env exp typ in
+     construct_mlir_pexp (checked_mlirpat, checked_guard, checked_exp, (l, None))
+
+(* type_coercion env exp typ takes a fully annoted (i.e. already type
+   checked) expression exp, and attempts to cast (coerce) it to the
+   type typ by inserting a coercion function that transforms the
+   annotated expression into the correct type. Returns an annoted
+   expression consisting of a type coercion function applied to exp,
+   or throws a type error if the coercion cannot be performed. *)
+and type_coercion env (E_aux (_, (l, _)) as annotated_exp) typ =
+  let strip exp_aux = strip_exp (E_aux (exp_aux, (Parse_ast.Unknown, None))) in
+  let annot_exp exp typ' = E_aux (exp, (l, mk_expected_tannot env typ' (Some typ))) in
+  let switch_exp_typ exp = match exp with
+    | E_aux (exp, (l, Some tannot)) -> E_aux (exp, (l, Some { tannot with expected = Some typ }))
+    | _ -> failwith "Cannot switch type for unannotated function"
 
 (* can_unify_with env goals exp typ takes an annotated expression, and
    checks that its annotated type can unify with the provided type. *)
@@ -4388,6 +4442,23 @@ and infer_mpat allow_unknown other_env env (MP_aux (mpat_aux, (l, uannot)) as mp
       )
   | _ -> typ_error l ("Couldn't infer type of mapping-pattern " ^ string_of_mpat mpat)
 
+and bind_mlirpat allow_unknown other_env env (MLIRP_aux (mlirpat_aux, (l, ())) as mlirpat) typ =
+  let typ, env = bind_existential l None typ env in
+  (*typ_print (lazy (Util.("Binding " |> yellow |> clear) ^ string_of_mlirpat mlirpat ^  " to " ^ string_of_typ typ));*)
+  let annot_mlirpat mlirpat typ' = MLIRP_aux (mlirpat, (l, mk_expected_tannot env typ' (Some typ))) in
+  let switch_typ mlirpat typ = match mlirpat with
+    | MLIRP_aux (mlirpat_aux, (l, Some tannot)) -> MLIRP_aux (mlirpat_aux, (l, Some { tannot with typ = typ }))
+    | _ -> typ_error env l "Cannot switch type for unannotated mapping-pattern"
+  in
+  let bind_tuple_mlirpat (tpats, env, guards) mlirpat typ =
+    let tpat, env, guards' = bind_mlirpat allow_unknown other_env env mlirpat typ in tpat :: tpats, env, guards' @ guards
+  in
+  match mlirpat_aux with
+  | MLIRP_var (mlirlit, mliratts) ->
+      let checked_mlirlit = check_mlirlit env mlirlit typ in
+      let checked_mliratts = List.map (fun mliratt -> check_mliratt env mliratt typ) mliratts in
+      annot_mlirpat (MLIRP_var(checked_mlirlit, checked_mliratts)) typ, env, []
+
 (**************************************************************************)
 (* 6. Effect system                                                       *)
 (**************************************************************************)
@@ -4484,6 +4555,53 @@ let check_mapcl env (MCL_aux (cl, (def_annot, _))) typ =
     end
   | _ ->
       typ_error def_annot.loc ("Mapping clause must have mapping type: " ^ string_of_typ typ ^ " is not a mapping type")
+
+(*let check_mlircl : 'a. Env.t -> 'a mlircl -> typ -> tannot mlircl =
+  fun env (MLIRCL_aux (cl, (l, _))) typ ->
+    (*match typ with
+    | Typ_aux (Typ_exp (typ1)) -> begin*)
+        match cl with
+        | MLIRCL_Mlircl (id, mlir_pexp) -> begin
+            let testing_env = Env.set_allow_unknowns true env in
+            let right_mlirpat, _, _, _ = destruct_mlir_pexp mlir_pexp in
+            let _, right_id_env, _ = bind_mlirpat true Env.empty testing_env (strip_mlirpat right_mlirpat) typ in
+
+            let typed_mlir_pexp = check_mlir_pexp right_id_env env (strip_mlir_pexp mlir_pexp) typ in
+            MLIRCL_aux (MLIRCL_Mlircl (id, typed_mlir_pexp), (l, mk_expected_tannot env typ (Some typ)))
+          end
+      (*end
+    | _ -> typ_error env l ("MLIR clause must have mlir type: " ^ string_of_typ typ ^ " is not a mlir type")*)
+*)
+let check_mlircl env (MLIRCL_aux (MLIRCL_Mlircl (id, mlir_pexp), (l, _))) typ =
+  match typ with
+  | Typ_aux (Typ_fn (typ_args, typ_ret), _) ->
+     begin
+       let typ_args = List.map implicit_to_int typ_args in
+       let env = Env.add_ret_typ typ_ret env in
+       (* We want to forbid polymorphic undefined values in all cases,
+          except when type checking the specific undefined_(type)
+          functions created by the -undefined_gen functions in
+          initial_check.ml. Only in these functions will the rewriter
+          be able to correctly re-write the polymorphic undefineds
+          (due to the specific form the functions have *)
+       let env =
+         if Str.string_match (Str.regexp_string "undefined_") (string_of_id id) 0
+         then Env.allow_polymorphic_undefineds env
+         else env
+       in
+       (* This is one of the cases where we are allowed to treat
+          function arguments as like a tuple, and maybe we
+          shouldn't. *)
+
+       let testing_env = Env.set_allow_unknowns true env in
+       let right_mlirpat, _, _, _ = destruct_mlir_pexp mlir_pexp in
+       let _, right_id_env, _ = bind_mlirpat true Env.empty testing_env (strip_mlirpat right_mlirpat) typ_ret in
+
+       let typed_mlir_pexp = check_mlir_pexp right_id_env env (strip_mlir_pexp mlir_pexp) typ_ret in
+
+       MLIRCL_aux (MLIRCL_Mlircl (id, typed_mlir_pexp), (l, mk_expected_tannot env typ (Some typ_ret)))
+     end
+  | _ -> typ_error env l ("MLIR clause must have function type: " ^ string_of_typ typ ^ " is not a function type")
 
 let infer_funtyp l env tannotopt funcls =
   match tannotopt with
@@ -4719,6 +4837,14 @@ let check_mapdef env def_annot (MD_aux (MD_mapping (id, tannot_opt, mapcls), (l,
   ( vs_def @ [DEF_aux (DEF_mapdef (MD_aux (MD_mapping (id, empty_tannot_opt, mapcls), (l, empty_tannot))), def_annot)],
     env
   )
+
+let check_mlirdef env (MLIRD_aux (MLIRD_cl (id, mlircls), (l, _))) =
+  let typq, typ = Env.get_val_spec id env in
+  let mlircl_env = Env.add_typquant l typq env in
+  let mlircls = List.map(fun mlircl -> check_mlircl mlircl_env mlircl typ) mlircls in
+  let env = Env.define_val_spec id env in
+  let vs_def = [] in
+  vs_def @ [DEF_mlirdef (MLIRD_aux (MLIRD_cl (id, mlircls), (l, None)))], env
 
 (* Checking a val spec simply adds the type as a binding in the context. *)
 let check_val_spec env def_annot (VS_aux (vs, (l, _))) =
@@ -5052,6 +5178,11 @@ and check_scattered : Env.t -> env def_annot -> uannot scattered_def -> typed_de
       ( [DEF_aux (DEF_scattered (SD_aux (SD_mapcl (id, mapcl), (l, empty_tannot))), def_annot)],
         Env.add_scattered_id id def_annot.attrs env
       )
+  | SD_mlircl (id, mlircl) ->
+     let typq, typ = Env.get_val_spec id env in
+     let mlircl_env = Env.add_typquant l typq env in
+     let mlircl = check_mlircl mlircl_env mlircl typ in
+     [DEF_scattered (SD_aux (SD_mlircl (id, mlircl), (l, None)))], env
 
 and check_outcome : Env.t -> outcome_spec -> untyped_def list -> outcome_spec * typed_def list * Env.t =
  fun env (OV_aux (OV_outcome (id, typschm, params), l)) defs ->
@@ -5197,6 +5328,7 @@ and check_def : Env.t -> untyped_def -> typed_def list * Env.t =
   | DEF_fundef fdef -> check_fundef env def_annot fdef
   | DEF_mapdef mdef -> check_mapdef env def_annot mdef
   | DEF_impl funcl -> check_impldef env def_annot funcl
+  | DEF_mlirdef (mlirdef) -> check_mlirdef env mlirdef
   | DEF_internal_mutrec fdefs ->
       let defs = List.concat (List.map (fun fdef -> fst (check_fundef env def_annot fdef)) fdefs) in
       let split_fundef (defs, fdefs) def =

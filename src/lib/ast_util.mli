@@ -442,7 +442,11 @@ val map_def_annot : ('a annot -> 'b annot) -> ('a, 'c) def -> ('b, 'c) def
 val map_def_def_annot : ('a def_annot -> 'b def_annot) -> ('c, 'a) def -> ('c, 'b) def
 val map_ast_annot : ('a annot -> 'b annot) -> ('a, 'c) ast -> ('b, 'c) ast
 
+val map_mlirpat_annot : ('a annot -> 'b annot) -> 'a mlirpat -> 'b mlirpat
+val map_mlir_pexp_annot : ('a annot -> 'b annot) -> 'a mlir_pexp -> 'b mlir_pexp
+
 (** {1 Extract locations from terms} *)
+
 val id_loc : id -> Parse_ast.l
 
 val kid_loc : kid -> Parse_ast.l
@@ -541,11 +545,19 @@ val pattern_vector_subranges : 'a pat -> (Big_int.num * Big_int.num) list Bindin
 val destruct_pexp : 'a pexp -> 'a pat * 'a exp option * 'a exp * (Ast.l * 'a)
 val construct_pexp : 'a pat * 'a exp option * 'a exp * (Ast.l * 'a) -> 'a pexp
 
+<<<<<<< HEAD
 val destruct_mpexp : 'a mpexp -> 'a mpat * 'a exp option * (Ast.l * 'a)
 val construct_mpexp : 'a mpat * 'a exp option * (Ast.l * 'a) -> 'a mpexp
 
 val is_valspec : id -> ('a, 'b) def -> bool
 val is_fundef : id -> ('a, 'b) def -> bool
+=======
+val destruct_mlir_pexp : 'a mlir_pexp -> 'a mlirpat * ('a exp) option * 'a exp  * (Ast.l * 'a)
+val construct_mlir_pexp : 'a mlirpat * ('a exp) option * 'a exp * (Ast.l * 'a) ->  'a mlir_pexp
+
+val is_valspec : id -> 'a def -> bool
+val is_fundef : id -> 'a def -> bool
+>>>>>>> 9e8dfeed (finish mlir first pass)
 
 val rename_valspec : id -> 'a val_spec -> 'a val_spec
 

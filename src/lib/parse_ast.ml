@@ -277,6 +277,43 @@ type typschm_opt_aux = TypSchm_opt_none | TypSchm_opt_some of typschm
 
 type typschm_opt = TypSchm_opt_aux of typschm_opt_aux * l
 
+type mlirlit_aux =
+  MLIRLit_string of string
+
+type mlirlit =
+  MLIRLit_aux of ( mlirlit_aux) * l
+
+type mliratt_aux =
+    MLIRatt_id of id
+  | MLIRatt_ctor of id * id * mlirlit
+
+type mliratt =
+  MLIRatt_aux of ( mliratt_aux) * l
+
+type mlirpat_aux =
+  MLIRP_var of mlirlit * ( mliratt) list
+
+type mlirpat =
+  MLIRP_aux of mlirpat_aux * l
+
+type mlirexp_aux =
+  MLIRE of id
+
+type mlirexp =
+  MLIRE_aux of mlirexp_aux * l
+
+type mlirpexp_aux =
+  MLIRPat_exp of mlirpat * exp
+
+type mlir_pexp =
+  MLIRPat_aux of mlirpexp_aux * l
+
+type 
+tannot_opt_aux =  (* Optional type annotation for functions *)
+   Typ_annot_opt_none
+ | Typ_annot_opt_some of typquant * atyp
+>>>>>>> 9e8dfeed (finish mlir first pass)
+
 type effect_opt_aux =
   | (* Optional effect annotation for functions *)
     Effect_opt_none (* sugar for empty effect set *)
@@ -317,6 +354,10 @@ type subst_aux =
   | IS_typ of kid * atyp (* instantiate a type variable with a type *)
   | IS_id of id * id (* instantiate an identifier with another identifier *)
 
+type
+mlircl_aux =  (* mlir constructors *)
+  MLIRCL_Mlircl of id * mlir_pexp
+
 type subst = IS_aux of subst_aux * l
 
 type index_range_aux =
@@ -352,6 +393,10 @@ and mpat = MP_aux of mpat_aux * l
 type mpexp_aux = MPat_pat of mpat | MPat_when of mpat * exp
 
 type mpexp = MPat_aux of mpexp_aux * l
+
+type
+mlircl =
+   MLIRCL_aux of mlircl_aux * l
 
 type mapcl = MCL_aux of mapcl_aux * l
 
@@ -407,6 +452,12 @@ type scattered_def_aux =
   | SD_end of id (* scattered definition end *)
 
 type default_typing_spec = DT_aux of default_typing_spec_aux * l
+
+type mlirdef_aux =  (* mapping definition (bidirectional pattern-match function) *)
+ | MLIRD_cl of id * ( mlircl) list
+
+type mlirdef =
+ | MLIRD_aux of ( mlirdef_aux) * l
 
 type fundef = FD_aux of fundef_aux * l
 

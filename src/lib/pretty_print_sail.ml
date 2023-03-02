@@ -701,10 +701,56 @@ module Printer (Config : PRINT_CONFIG) = struct
         | Some exp -> separate space [string "register"; doc_id id; colon; doc_typ typ; equals; doc_exp exp]
       )
 
+  let doc_mlirlit (MLIRLit_aux (cl, _)) =
+    utf8string (match cl with
+    | MLIRLit_string (s) -> "\"" ^ String.escaped s ^ "\"")
+  
+  let doc_mliratt (MLIRatt_aux (cl, _)) =
+    match cl with
+    | MLIRatt_id (id) -> doc_id id
+    | MLIRatt_ctor (id, id1, mlirlit) -> doc_id id ^^ string "<" ^^ doc_id id1 ^^ string ",[" ^^ doc_mlirlit mlirlit ^^ string "]>"
+  
+  let doc_mlirpat (MLIRP_aux (cl, _)) =
+    match cl with
+    | MLIRP_var (mlirlit, mliratts) ->
+       let left = doc_mlirlit mlirlit in
+       string "<" ^^ left ^^ string ", ["  ^^ separate_map (comma ^^ space) doc_mliratt mliratts ^^ string "]>"
+  
+  let doc_mlir_pexp (MLIRPat_aux (cl, _)) =
+    match cl with
+    | MLIRPat_exp (mlirpat, exp) ->
+       let left = doc_mlirpat mlirpat in
+       let right = doc_exp exp in
+       left ^^ space ^^ right
+  
+  let doc_mlircl (MLIRCL_aux (cl, _)) =
+    match cl with
+    | MLIRCL_Mlircl (id, mlir_pexp) ->
+       let left = doc_id id in
+       let right = doc_mlir_pexp mlir_pexp in
+       left ^^ right
+
   let doc_field (typ, id) = separate space [doc_id id; colon; doc_typ typ]
 
   let doc_union (Tu_aux (Tu_ty_id (typ, id), def_annot)) =
     doc_def_annot def_annot ^^ separate space [doc_id id; colon; doc_typ typ]
+
+  let doc_mlirdef (MLIRD_aux (MLIRD_cl (id, mlircls), _)) =
+    match mlircls with
+    | [] -> failwith "Empty mapping"
+    | _ ->
+       let sep = string "," ^^ hardline in
+       let clauses = separate_map sep doc_mlircl mlircls in
+       string "mlir clause" ^^ space ^^ doc_id id ^^ space ^^ string "=" ^^ space ^^ (surround 2 0 lbrace clauses rbrace)
+  
+  let doc_dec (DEC_aux (reg,_)) =
+    match reg with
+    | DEC_reg (typ, id, opt_exp) ->
+       match opt_exp with
+       | None ->
+          separate space [string "register"; doc_id id; colon; doc_typ typ]
+       | Some exp ->
+          separate space [string "register"; doc_id id; colon; doc_typ typ; equals; doc_exp exp]
 
   let rec doc_index_range (BF_aux (ir, _)) =
     match ir with

@@ -931,6 +931,10 @@ and map_mapcl_annot f = function
   | MCL_aux (MCL_forwards pexp, annot) -> MCL_aux (MCL_forwards (map_pexp_annot f pexp), map_clause_annot f annot)
   | MCL_aux (MCL_backwards pexp, annot) -> MCL_aux (MCL_backwards (map_pexp_annot f pexp), map_clause_annot f annot)
 
+and map_mlircl_annot f = function
+  | (MLIRCL_aux (MLIRCL_Mlircl (id, mlir_pexp), annot)) ->
+     MLIRCL_aux (MLIRCL_Mlircl (id, map_mlir_pexp_annot f mlir_pexp), f annot)
+
 and map_mpat_annot f (MP_aux (mpat, annot)) = MP_aux (map_mpat_annot_aux f mpat, f annot)
 
 and map_mpat_annot_aux f = function
@@ -1002,6 +1006,7 @@ and map_scattered_annot_aux f = function
   | SD_internal_unioncl_record (id, record_id, typq, fields) -> SD_internal_unioncl_record (id, record_id, typq, fields)
   | SD_mapping (id, tannot_opt) -> SD_mapping (id, tannot_opt)
   | SD_mapcl (id, mcl) -> SD_mapcl (id, map_mapcl_annot f mcl)
+  | SD_mlircl (id, mlircl) -> SD_mlircl (id, map_mlircl_annot f mlircl)
   | SD_end id -> SD_end id
   | SD_enum id -> SD_enum id
   | SD_enumcl (id, member) -> SD_enumcl (id, member)
@@ -1061,6 +1066,26 @@ let rec map_def_def_annot f (DEF_aux (aux, annot)) =
     | DEF_pragma (name, arg, l) -> DEF_pragma (name, arg, l)
   in
   DEF_aux (aux, f annot)
+
+and map_mlirlit_annot f (MLIRLit_aux (mlirlit, annot)) = MLIRLit_aux (map_mlirlit_annot_aux f mlirlit, f annot)
+and map_mlirlit_annot_aux f = function
+  | MLIRLit_string str -> MLIRLit_string str
+
+and map_mliratt_annot f (MLIRatt_aux (mliratt, annot)) = MLIRatt_aux (map_mliratt_annot_aux f mliratt, f annot)
+and map_mliratt_annot_aux f = function
+  | MLIRatt_id id -> MLIRatt_id id
+  | MLIRatt_ctor (id, id1, mlirlit) -> MLIRatt_ctor (id, id1, map_mlirlit_annot f mlirlit)
+
+and map_mlirpat_annot f (MLIRP_aux (mlirpat, annot)) = MLIRP_aux (map_mlirpat_annot_aux f mlirpat, f annot)
+and map_mlirpat_annot_aux f = function
+  | MLIRP_var (mlirlit, mliratts) -> MLIRP_var (map_mlirlit_annot f mlirlit, List.map (map_mliratt_annot f) mliratts)
+
+and map_mlir_pexp_annot f (MLIRPat_aux (mlir_pexp, annot)) = MLIRPat_aux (map_mlir_pexp_annot_aux f mlir_pexp, f annot)
+and map_mlir_pexp_annot_aux f = function
+  | MLIRPat_exp (mlirpat, exp) -> MLIRPat_exp (map_mlirpat_annot f mlirpat, map_exp_annot f exp)
+
+and map_loop_measure_annot f = function
+  | Loop (loop, exp) -> Loop (loop, map_exp_annot f exp)
 
 let def_loc (DEF_aux (_, annot)) = annot.loc
 
@@ -1434,6 +1459,7 @@ let id_of_dec_spec (DEC_aux (DEC_reg (_, id, _), _)) = id
 
 let id_of_scattered (SD_aux (sdef, _)) =
   match sdef with
+<<<<<<< HEAD
   | SD_function (id, _)
   | SD_funcl (FCL_aux (FCL_funcl (id, _), _))
   | SD_end id
@@ -1445,6 +1471,11 @@ let id_of_scattered (SD_aux (sdef, _)) =
   | SD_enum id
   | SD_enumcl (id, _) ->
       id
+=======
+  | SD_function (_, _, id)  | SD_funcl (FCL_aux (FCL_Funcl (id, _), _)) | SD_end id
+    | SD_variant (id, _) | SD_unioncl (id, _)
+    | SD_mapping (id, _) | SD_mapcl (id, _) -> id | SD_mlircl (id, _) -> id
+>>>>>>> 9e8dfeed (finish mlir first pass)
 
 let ids_of_def (DEF_aux (aux, _)) =
   match aux with
@@ -1710,8 +1741,20 @@ let construct_pexp (pat, guard, exp, ann) =
 let destruct_mpexp (MPat_aux (mpexp, ann)) =
   match mpexp with MPat_pat mpat -> (mpat, None, ann) | MPat_when (mpat, guard) -> (mpat, Some guard, ann)
 
+<<<<<<< HEAD
 let construct_mpexp (mpat, guard, ann) =
   match guard with None -> MPat_aux (MPat_pat mpat, ann) | Some guard -> MPat_aux (MPat_when (mpat, guard), ann)
+=======
+let destruct_mlir_pexp (MLIRPat_aux (mlir_pexp,ann)) =
+  match mlir_pexp with
+  | MLIRPat_exp (mlirpat, exp) -> mlirpat,None,exp,ann
+
+let construct_mlir_pexp (mlirpat,guard,exp,ann) =
+  match guard with
+  | None -> MLIRPat_aux (MLIRPat_exp (mlirpat,exp),ann)
+  | Some guard -> MLIRPat_aux (MLIRPat_exp (mlirpat,exp),ann)
+
+>>>>>>> 9e8dfeed (finish mlir first pass)
 
 let is_valspec id = function
   | DEF_aux (DEF_val (VS_aux (VS_val_spec (_, id', _), _)), _) when Id.compare id id' = 0 -> true

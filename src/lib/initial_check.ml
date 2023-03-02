@@ -1826,6 +1826,33 @@ let rec to_ast_mapcl doc attrs ctx (P.MCL_aux (mapcl, l)) =
   | P.MCL_backwards pexp -> MCL_aux (MCL_backwards (to_ast_case ctx pexp), (mk_def_annot ?doc ~attrs l (), empty_uannot))
 
 let to_ast_mapdef ctx (P.MD_aux (md, l) : P.mapdef) : uannot mapdef =
+
+let to_ast_mlirlit ctx (P.MLIRLit_aux(mlirlit, l)) =
+  MLIRLit_aux(
+    (match mlirlit with
+    | P.MLIRLit_string (s) -> MLIRLit_string s
+    ), (l,()))
+
+let to_ast_mliratt ctx (P.MLIRatt_aux(mliratt, l)) =
+  MLIRatt_aux(
+    (match mliratt with
+    | P.MLIRatt_id (id) -> MLIRatt_id(to_ast_id ctx id)
+    | P.MLIRatt_ctor (id, id1, mlirlit) -> MLIRatt_ctor(to_ast_id ctx id, to_ast_id ctx id1, to_ast_mlirlit ctx mlirlit)
+    ), (l, ()))
+
+let to_ast_mlirpat ctx (P.MLIRP_aux(mlirpat, l)) =
+  match mlirpat with
+  | P.MLIRP_var (mlirlit, mliratts) -> MLIRP_aux(MLIRP_var(to_ast_mlirlit ctx mlirlit, List.map (to_ast_mliratt ctx) mliratts), (l, ()))
+
+let to_ast_mlir_pexp ctx (P.MLIRPat_aux(mlir_pexp, l)) =
+  match mlir_pexp with
+  | P.MLIRPat_exp (mlirpat, exp) -> MLIRPat_aux(MLIRPat_exp(to_ast_mlirpat ctx mlirpat, to_ast_exp ctx exp), (l,()))
+
+let to_ast_mlircl ctx (P.MLIRCL_aux(mlircl, l)) =
+  match mlircl with
+  | P.MLIRCL_Mlircl(id, mlir_pexp) -> MLIRCL_aux(MLIRCL_Mlircl(to_ast_id ctx id, to_ast_mlir_pexp ctx mlir_pexp ), (l, ()))
+
+let to_ast_mapdef ctx (P.MD_aux(md,l):P.mapdef) : unit mapdef =
   match md with
   | P.MD_mapping (id, typschm_opt, mapcls) ->
       let tannot_opt, ctx = to_ast_typschm_opt ctx typschm_opt in
@@ -1898,6 +1925,10 @@ let to_ast_scattered ctx (P.SD_aux (aux, l)) =
         let id = to_ast_id ctx id in
         let member = to_ast_id ctx member in
         (None, SD_enumcl (id, member), ctx)
+    | P.SD_mlircl (id, mlircl) ->
+       let id = to_ast_id ctx id in
+       let mlircl = to_ast_mlircl ctx mlircl in
+       (None, SD_mlircl (id, mlircl), ctx)
   in
   (extra_def, SD_aux (aux, (l, empty_uannot)), ctx)
 
@@ -2092,6 +2123,8 @@ let initial_ctx =
           ("float64", ([], P.K_type));
           ("float128", ([], P.K_type));
           ("float_rounding_mode", ([], P.K_type));
+          ("Tensor", [K_type]);
+          ("Scalar", [K_type]);
         ];
     function_type_variables = Bindings.empty;
     kinds = KBindings.empty;

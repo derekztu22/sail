@@ -300,5 +300,9 @@ cdef :: 'CDEF_' ::=
       instr0 ; ... ; instrn
     } :: :: finish
 
+  %| function id ( id0 , ... , idn ) {
+  %    instr0 ; ... ; instrm
+  %  } :: :: mlirdef
+
 % Directive preserved from Sail
   | $ string1 string2 :: :: pragma
