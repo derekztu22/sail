@@ -101,6 +101,9 @@ let mk_typ t n m = ATyp_aux (t, loc n m)
 let mk_pat p n m = P_aux (p, loc n m)
 let mk_pexp p n m = Pat_aux (p, loc n m)
 let mk_exp e n m = E_aux (e, loc n m)
+let mk_mlirpat p n m = MLIRP_aux (p, loc n m)
+let mk_mlirpexp p n m = MLIRPat_aux (p, loc n m)
+let mk_mlirexp e n m = MLIRE_aux (e, loc n m)
 let mk_measure meas n m = Measure_aux (meas, loc n m)
 let mk_lit l n m = L_aux (l, loc n m)
 let mk_lit_exp l n m = mk_exp (E_lit (mk_lit l n m)) n m
@@ -120,6 +123,7 @@ let mk_ir r n m = BF_aux (r, loc n m)
 
 let mk_funcl f n m = FCL_aux (f, loc n m)
 let mk_fun fn n m = FD_aux (fn, loc n m)
+let mk_mlircl f n m = MLIRCL_aux (f, loc n m)
 let mk_td t n m = TD_aux (t, loc n m)
 let mk_vs v n m = VS_aux (v, loc n m)
 let mk_reg_dec d n m = DEC_aux (d, loc n m)
@@ -129,6 +133,8 @@ let mk_subst ev n m = IS_aux (ev, loc n m)
  
 let mk_mpexp mpexp n m = MPat_aux (mpexp, loc n m)
 let mk_mpat mpat n m = MP_aux (mpat, loc n m)
+let mk_mliratt mliratt n m = MLIRatt_aux (mliratt, loc n m)
+let mk_mlirlit mlirlit n m = MLIRLit_aux (mlirlit, loc n m)
 let mk_bidir_mapcl mpexp1 mpexp2 n m = MCL_aux (MCL_bidir (mpexp1, mpexp2), loc n m)
 let mk_forwards_mapcl mpexp exp n m = MCL_aux (MCL_forwards (mpexp, exp), loc n m)
 let mk_backwards_mapcl mpexp exp n m = MCL_aux (MCL_backwards (mpexp, exp), loc n m)
@@ -147,6 +153,7 @@ let doc_reg_dec doc (DEC_aux (d, l)) = DEC_aux (d, doc_loc doc l)
 let doc_mapcl doc (MCL_aux (d, l)) = MCL_aux (d, doc_loc doc l)
 let doc_map doc (MD_aux (m, l)) = MD_aux (m, doc_loc doc l)
 let doc_tu doc (Tu_aux (tu, l)) = Tu_aux (tu, doc_loc doc l)
+let doc_mlir doc (MLIRCL_aux (mlircl, l)) = MLIRCL_aux (mlircl, doc_loc doc l)
 let doc_id doc (Id_aux (id, l)) = Id_aux (id, doc_loc doc l)
 
 let doc_sd doc (SD_aux (sd, l)) =
@@ -154,6 +161,7 @@ let doc_sd doc (SD_aux (sd, l)) =
   | SD_funcl fcl -> SD_aux (SD_funcl (doc_funcl doc fcl), l)
   | SD_unioncl (id, tu) -> SD_aux (SD_unioncl (id, doc_tu doc tu), l)
   | SD_mapcl (id, mcl) -> SD_aux (SD_mapcl (id, doc_mapcl doc mcl), l)
+  | SD_mlircl (id, mlircl) -> SD_aux (SD_mlircl (id, doc_mlir doc mlircl), l)
 
   | SD_function _
   | SD_variant _
@@ -250,6 +258,7 @@ let warn_extern_effect l =
 %token Repeat Until While Do Mutual Var Ref Configuration TerminationMeasure Instantiation Impl
 %token InternalPLet InternalReturn
 %token Forwards Backwards
+%token Mlir
 
 %nonassoc Then
 %nonassoc Else
@@ -1193,6 +1202,34 @@ vector_update_list:
   | vector_update Comma vector_update_list
     { $1 :: $3 }
 
+mlirlit:
+  | String
+   {mk_mlirlit(MLIRLit_string $1) $startpos $endpos}
+
+mlirpat:
+  | Lt mlirlit Comma Lsquare mliratt_list Rsquare Gt
+    {mk_mlirpat (MLIRP_var($2, $5)) $startpos $endpos}
+
+mlir_patexp:
+  | mlirpat exp
+    {mk_mlirpexp(MLIRPat_exp($1, $2)) $startpos $endpos }
+
+mlircl:
+  | id mlir_patexp
+    { mk_mlircl (MLIRCL_Mlircl($1, $2)) $startpos $endpos }
+
+mliratt:
+  | id
+    { mk_mliratt(MLIRatt_id $1) $startpos $endpos }
+  | id Lt id Comma Lsquare mlirlit Rsquare Gt
+    { mk_mliratt(MLIRatt_ctor ($1, $3, $6)) $startpos $endpos }
+
+mliratt_list:
+  | mliratt Comma?
+    { [$1] }
+  | mliratt Comma mliratt_list
+    { $1 :: $3 }
+
 funcl_patexp:
   | pat Eq exp
     { mk_pexp (Pat_exp ($1, $3)) $startpos $endpos }
@@ -1428,6 +1465,7 @@ atomic_mpat:
   | mpat If_ exp
     { mk_mpexp (MPat_when ($1, $3)) $startpos $endpos }
 
+
 mapcl:
   | mpexp Bidir mpexp
     { mk_bidir_mapcl $1 $3 $startpos $endpos }
@@ -1545,12 +1583,18 @@ scattered_def:
     { mk_sd (SD_mapping ($3, mk_tannotn)) $startpos $endpos }
   | Scattered Mapping id Colon funcl_typ
     { mk_sd (SD_mapping ($3, $5)) $startpos $endpos }
+  | Scattered Mlir id typaram
+    { mk_sd (SD_variant($3, $4)) $startpos $endpos }
+  | Scattered Mlir id
+    { mk_sd (SD_variant($3, mk_typqn)) $startpos $endpos }
   | Function_ Clause funcl
     { mk_sd (SD_funcl $3) $startpos $endpos }
   | Union Clause id Eq type_union
     { mk_sd (SD_unioncl ($3, $5)) $startpos $endpos }
   | Mapping Clause id Eq mapcl
     { mk_sd (SD_mapcl ($3, $5)) $startpos $endpos }
+  | Mlir Clause id Eq mlircl
+    { mk_sd (SD_mlircl ($3, $5)) $startpos $endpos }
   | End id
     { mk_sd (SD_end $2) $startpos $endpos }
 

@@ -120,7 +120,7 @@ let rec iterate_mlircl mlircl_string_list =
             let in_type = String.split_on_char ':' h in
             let in_type = String.split_on_char '(' (List.nth in_type 1) in
             let further_input_strings, _ = further_inputs t (Int.add num 1) in 
-             ", Tosa_" ^ Str.replace_first whitespace_regex "" (List.hd in_type) ^ "$input" ^ string_of_int(num) ^ further_input_strings, num 
+             ", Tosa_" ^ Str.replace_first whitespace_regex "" (List.hd in_type) ^ ":$input" ^ string_of_int(num) ^ further_input_strings, num 
           else
             let further_input_strings, _ = (further_inputs t (Int.add num 1)) in 
             ("" ^ further_input_strings, num)
@@ -128,27 +128,20 @@ let rec iterate_mlircl mlircl_string_list =
       let in_type = String.split_on_char ':' h in
       let in_type = String.split_on_char '(' (List.nth in_type 1) in
       let further_input_strings, _ = further_inputs t 2 in
-      "let arguments = (ins Tosa_" ^ Str.replace_first whitespace_regex "" (List.hd in_type) ^ "$input1" ^ (further_input_strings) ^ ");" ^ "\n" ^ iterate_mlircl t
+      "let arguments = (ins Tosa_" ^ Str.replace_first whitespace_regex "" (List.hd in_type) ^ ":$input1" ^ (further_input_strings) ^ ");" ^ "\n" ^ iterate_mlircl t
 
     else if str_contains h "output"  then
       let out_type = String.split_on_char ':' h in
       let out_type = String.split_on_char '(' (List.nth out_type 1) in
       "let results = (outs Tosa_" ^ Str.replace_first whitespace_regex "" (List.hd out_type) ^ ":$output);" ^ "\n" ^ iterate_mlircl t
 
+    else if str_contains h "Canonicalizer"  then
+      let var = String.split_on_char '=' h in
+      let var = List.hd (String.split_on_char ';' (List.nth var 1)) in
+      "let hasCanonicalizer = "^ var ^ ";\n" ^ iterate_mlircl t
+
     else
       "" ^ iterate_mlircl t
-
-let rec ops_mlircl mlircl_string_list = 
-  match mlircl_string_list with
-  | [] -> ""
-  | h :: t ->
-    let sail_regex = Str.regexp "Sail_" in
-    if str_contains h "Sail_"  then
-      let parameter_list = String.split_on_char '<' h in
-      let defname = Str.replace_first sail_regex "" (List.hd parameter_list) in
-      "void " ^ defname ^ "::getCanonicalizationPatterns(RewritePatternSet &results,\nMLIRContext *context) {\nresults.add<AddZeroOptimization>(context);}\n" ^ ops_mlircl t
-    else
-      "" ^ ops_mlircl t
 
 let rec canonicalization_mlircl mlircl_string_list = 
   match mlircl_string_list with
@@ -158,9 +151,21 @@ let rec canonicalization_mlircl mlircl_string_list =
     if str_contains h "Sail_"  then
       let parameter_list = String.split_on_char '<' h in
       let defname = Str.replace_first sail_regex "" (List.hd parameter_list) in
-      "NARY_SHAPE_INTER(tosa::" ^ defname ^ ")\n" ^ canonicalization_mlircl t
+      "void " ^ defname ^ "::getCanonicalizationPatterns(RewritePatternSet &results,\nMLIRContext *context) {\nresults.add<AddZeroOptimization>(context);}\n" ^ canonicalization_mlircl t
     else
       "" ^ canonicalization_mlircl t
+
+let rec ops_mlircl mlircl_string_list = 
+  match mlircl_string_list with
+  | [] -> ""
+  | h :: t ->
+    let sail_regex = Str.regexp "Sail_" in
+    if str_contains h "Sail_"  then
+      let parameter_list = String.split_on_char '<' h in
+      let defname = Str.replace_first sail_regex "" (List.hd parameter_list) in
+      "NARY_SHAPE_INFER(tosa::" ^ defname ^ ")\n" ^ ops_mlircl t
+    else
+      "" ^ ops_mlircl t
 
 let rec out_test_mlircl mlircl_string_list outtype =
   match mlircl_string_list with
@@ -169,6 +174,7 @@ let rec out_test_mlircl mlircl_string_list outtype =
     if str_contains h "Sail_"  then
       let instr_name = List.nth (String.split_on_char '"' h) 1 in
       if outtype = "test_param" then
+        "// CHECK-LABEL: " ^ instr_name ^ "\n" ^
         "func.func @test_" ^ instr_name ^ "(" ^ out_test_mlircl t outtype 
       else if outtype = "test_body" then
         "  %0 = \"tosa." ^ instr_name ^ "\" (" ^ out_test_mlircl t outtype 
@@ -233,7 +239,7 @@ let rec out_test_mlircl mlircl_string_list outtype =
         let in_type = in_type ^ "<13x21x3xf32>" in
         let further_input_params, _ = further_params t 1 in
         let further_in_types = further_types t in
-        "arg0" ^ further_input_params ^ ") : (" ^ in_type ^ further_in_types ^ ") -> " ^ out_test_mlircl t outtype
+        "%arg0" ^ further_input_params ^ ") : (" ^ in_type ^ further_in_types ^ ") -> " ^ out_test_mlircl t outtype
       else
         "" ^ out_test_mlircl t outtype
 
@@ -334,6 +340,7 @@ let rec nfunctions_mlircl mlircl_string_list outtype=
         "" ^ find_instr_name t
   in
   let instr_name = ref (find_instr_name mlircl_string_list) in
+  let whitespace_regex = Str.regexp " " in
 
   match mlircl_string_list with
   | [] -> ""
@@ -367,36 +374,32 @@ let rec nfunctions_mlircl mlircl_string_list outtype=
             | h :: t ->
               if str_contains h "input"  then
                 let in_type = String.split_on_char ':' h in
-                let in_type = List.hd (String.split_on_char '(' (List.nth in_type 1)) in
+                let in_type = Str.replace_first whitespace_regex "" (List.hd (String.split_on_char '(' (List.nth in_type 1))) in
                 let further_input_strings = further_inputs t in 
                 in_type ^ " other" ^ further_input_strings
               else
                 let further_input_strings = (further_inputs t) in 
                 ("" ^ further_input_strings)
           in
+          let in_type = String.split_on_char ':' h in
+          let in_type = Str.replace_first whitespace_regex "" (List.hd (String.split_on_char '(' (List.nth in_type 1))) in
           if outtype = "norm" then 
-            let in_type = String.split_on_char ':' h in
-            let in_type = List.hd (String.split_on_char '(' (List.nth in_type 1)) in
             in_type ^ " self, " ^ further_inputs t ^ ", *, Scalar alpha=1) -> " ^ nfunctions_inner_mlircl t outtype instr_name
           else if outtype = "_" then 
-            let in_type = String.split_on_char ':' h in
-            let in_type = List.hd (String.split_on_char '(' (List.nth in_type 1)) in
             in_type ^ "(a!) self, " ^ further_inputs t ^ ", *, Scalar alpha=1) -> " ^ nfunctions_inner_mlircl t outtype instr_name
           else if outtype = "_out" then 
-            let in_type = String.split_on_char ':' h in
-            let in_type = List.hd (String.split_on_char '(' (List.nth in_type 1)) in
-            in_type ^ " self, " ^ further_inputs t ^ ", Scalar alpha=1," ^ find_return_type t ^ "(a!) out) ->" ^ nfunctions_inner_mlircl t outtype instr_name 
+            in_type ^ " self, " ^ further_inputs t ^ ", *, Scalar alpha=1," ^ find_return_type t ^ "(a!) out) -> " ^ nfunctions_inner_mlircl t outtype instr_name 
           else
            "" ^ nfunctions_inner_mlircl t outtype instr_name
         else if str_contains h "output" then
           let out_type = String.split_on_char ':' h in
-          let out_type = List.hd(String.split_on_char '(' (List.nth out_type 1)) in
+          let out_type = Str.replace_first whitespace_regex "" (List.hd(String.split_on_char '(' (List.nth out_type 1))) in
           if outtype = "norm" then
-            out_type ^ "\n variants: function\n dispatch:\n    CPU: " ^ !instr_name ^  nfunctions_inner_mlircl t outtype instr_name
+            out_type ^ "\n  variants: function\n  dispatch:\n    CPU: " ^ !instr_name ^  nfunctions_inner_mlircl t outtype instr_name
           else if outtype = "_" then
-            out_type ^ "(a!)\n variants: method\n dispatch:\n    CPU: " ^ !instr_name ^ outtype ^ nfunctions_inner_mlircl t outtype instr_name
+            out_type ^ "(a!)\n  variants: method\n  dispatch:\n    CPU: " ^ !instr_name ^ outtype ^ nfunctions_inner_mlircl t outtype instr_name
           else if outtype = "_out" then
-            out_type ^ "(a!)\n variants: function\n dispatch:\n    CPU: " ^ !instr_name ^ outtype ^ nfunctions_inner_mlircl t outtype instr_name
+            out_type ^ "(a!)\n  variants: function\n  dispatch:\n    CPU: " ^ !instr_name ^ outtype ^ nfunctions_inner_mlircl t outtype instr_name
           else
           "" ^ nfunctions_inner_mlircl t outtype instr_name
         else
@@ -516,13 +519,14 @@ let rec torch_ods_gen_mlircl mlircl_string_list =
       "" ^ torch_ods_gen_mlircl t
 
     else if str_contains h "input1" then
+      let whitespace_regex = Str.regexp " " in
       let rec further_inputs str_list =
         match str_list with
         | [] -> ""
         | h :: t ->
           if str_contains h "input"  then
             let in_type = String.split_on_char ':' h in
-            let in_type = List.hd (String.split_on_char '(' (List.nth in_type 1)) in
+            let in_type = Str.replace_first whitespace_regex "" (List.hd (String.split_on_char '(' (List.nth in_type 1))) in
             let further_input_strings = further_inputs t in 
               ", " ^ in_type ^ further_input_strings
           else
@@ -530,12 +534,13 @@ let rec torch_ods_gen_mlircl mlircl_string_list =
             ("" ^ further_input_strings)
       in
       let in_type = String.split_on_char ':' h in
-      let in_type = List.hd (String.split_on_char '(' (List.nth in_type 1)) in
+      let in_type = Str.replace_first whitespace_regex "" (List.hd (String.split_on_char '(' (List.nth in_type 1))) in
       in_type ^ further_inputs t ^ ", Scalar) -> (" ^ torch_ods_gen_mlircl t
 
     else if str_contains h "output" then
+      let whitespace_regex = Str.regexp " " in
       let out_type = String.split_on_char ':' h in
-      let out_type = List.hd(String.split_on_char '(' (List.nth out_type 1)) in
+      let out_type = Str.replace_first whitespace_regex "" (List.hd(String.split_on_char '(' (List.nth out_type 1))) in
        out_type ^ ")\",\n" ^ torch_ods_gen_mlircl t
     else
       "" ^ torch_ods_gen_mlircl t
@@ -686,5 +691,3 @@ let compile_ast env effect_info output_chan ast opt_pytorch opt_tosa opt_torch_m
   let output_chan = open_out fname10 in
   Printf.fprintf output_chan "%s" tosa_uncategorized;
   close_out output_chan;
-
-  print_endline(tosa_nfunctions)

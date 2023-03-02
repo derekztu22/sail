@@ -681,6 +681,10 @@ and map_mapcl_annot f = function
   | (MCL_aux (MCL_backwards (mpexp, exp), annot)) ->
      MCL_aux (MCL_backwards (map_mpexp_annot f mpexp, map_exp_annot f exp), f annot)
 
+and map_mlircl_annot f = function
+  | (MLIRCL_aux (MLIRCL_Mlircl (id, mlir_pexp), annot)) ->
+     MLIRCL_aux (MLIRCL_Mlircl (id, map_mlir_pexp_annot f mlir_pexp), f annot)
+
 and map_mpat_annot f (MP_aux (mpat, annot)) = MP_aux (map_mpat_annot_aux f mpat, f annot)
 and map_mpat_annot_aux f = function
   | MP_lit lit -> MP_lit lit
@@ -746,6 +750,7 @@ and map_scattered_annot_aux f = function
   | SD_unioncl (id, tu) -> SD_unioncl (id, tu)
   | SD_mapping (id, tannot_opt) -> SD_mapping (id, tannot_opt)
   | SD_mapcl (id, mcl) -> SD_mapcl (id, map_mapcl_annot f mcl)
+  | SD_mlircl (id, mlircl) -> SD_mlircl (id, map_mlircl_annot f mlircl)
   | SD_end id -> SD_end id
 
 and map_decspec_annot f = function
@@ -773,6 +778,23 @@ and map_def_annot f = function
   | DEF_internal_mutrec fds -> DEF_internal_mutrec (List.map (map_fundef_annot f) fds)
   | DEF_pragma (name, arg, l) -> DEF_pragma (name, arg, l)
 and map_ast_annot f ast = { ast with defs = List.map (map_def_annot f) ast.defs }
+
+and map_mlirlit_annot f (MLIRLit_aux (mlirlit, annot)) = MLIRLit_aux (map_mlirlit_annot_aux f mlirlit, f annot)
+and map_mlirlit_annot_aux f = function
+  | MLIRLit_string str -> MLIRLit_string str
+
+and map_mliratt_annot f (MLIRatt_aux (mliratt, annot)) = MLIRatt_aux (map_mliratt_annot_aux f mliratt, f annot)
+and map_mliratt_annot_aux f = function
+  | MLIRatt_id id -> MLIRatt_id id
+  | MLIRatt_ctor (id, id1, mlirlit) -> MLIRatt_ctor (id, id1, map_mlirlit_annot f mlirlit)
+
+and map_mlirpat_annot f (MLIRP_aux (mlirpat, annot)) = MLIRP_aux (map_mlirpat_annot_aux f mlirpat, f annot)
+and map_mlirpat_annot_aux f = function
+  | MLIRP_var (mlirlit, mliratts) -> MLIRP_var (map_mlirlit_annot f mlirlit, List.map (map_mliratt_annot f) mliratts)
+
+and map_mlir_pexp_annot f (MLIRPat_aux (mlir_pexp, annot)) = MLIRPat_aux (map_mlir_pexp_annot_aux f mlir_pexp, f annot)
+and map_mlir_pexp_annot_aux f = function
+  | MLIRPat_exp (mlirpat, exp) -> MLIRPat_exp (map_mlirpat_annot f mlirpat, map_exp_annot f exp)
 
 and map_loop_measure_annot f = function
   | Loop (loop, exp) -> Loop (loop, map_exp_annot f exp)
@@ -1093,7 +1115,7 @@ let id_of_scattered (SD_aux (sdef, _)) =
   match sdef with
   | SD_function (_, _, id)  | SD_funcl (FCL_aux (FCL_Funcl (id, _), _)) | SD_end id
     | SD_variant (id, _) | SD_unioncl (id, _)
-    | SD_mapping (id, _) | SD_mapcl (id, _) -> id
+    | SD_mapping (id, _) | SD_mapcl (id, _) -> id | SD_mlircl (id, _) -> id
 
 let ids_of_def = function
   | DEF_type td -> IdSet.singleton (id_of_type_def td)
@@ -1533,6 +1555,15 @@ let construct_mpexp (mpat,guard,ann) =
   match guard with
   | None -> MPat_aux (MPat_pat mpat,ann)
   | Some guard -> MPat_aux (MPat_when (mpat,guard),ann)
+
+let destruct_mlir_pexp (MLIRPat_aux (mlir_pexp,ann)) =
+  match mlir_pexp with
+  | MLIRPat_exp (mlirpat, exp) -> mlirpat,None,exp,ann
+
+let construct_mlir_pexp (mlirpat,guard,exp,ann) =
+  match guard with
+  | None -> MLIRPat_aux (MLIRPat_exp (mlirpat,exp),ann)
+  | Some guard -> MLIRPat_aux (MLIRPat_exp (mlirpat,exp),ann)
 
 
 let is_valspec id = function

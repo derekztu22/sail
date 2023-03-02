@@ -196,6 +196,7 @@ and
 kinded_id = 
    KOpt_aux of kinded_id_aux * l
 
+
 type
 quant_item_aux =  (* Either a kinded identifier or a nexp constraint for a typquant *)
    QI_id of kinded_id (* An optionally kinded identifier *)
@@ -329,7 +330,40 @@ and letbind_aux =  (* Let binding *)
 and letbind = 
    LB_aux of letbind_aux * l
 
+(*TODO*)
 
+type mlirlit_aux =
+  MLIRLit_string of string
+
+type mlirlit =
+  MLIRLit_aux of ( mlirlit_aux) * l
+
+type mliratt_aux =
+    MLIRatt_id of id
+  | MLIRatt_ctor of id * id * mlirlit
+
+type mliratt =
+  MLIRatt_aux of ( mliratt_aux) * l
+
+type mlirpat_aux =
+  MLIRP_var of mlirlit * ( mliratt) list
+
+type mlirpat =
+  MLIRP_aux of mlirpat_aux * l
+
+type mlirexp_aux =
+  MLIRE of id
+
+type mlirexp =
+  MLIRE_aux of mlirexp_aux * l
+
+type mlirpexp_aux =
+  MLIRPat_exp of mlirpat * exp
+
+type mlir_pexp =
+  MLIRPat_aux of mlirpexp_aux * l
+
+(* END TODO *)
 type 
 tannot_opt_aux =  (* Optional type annotation for functions *)
    Typ_annot_opt_none
@@ -367,6 +401,10 @@ type_union_aux =  (* Type union constructors *)
    Tu_ty_id of atyp * id
  | Tu_ty_anon_rec of (atyp * id) list * id
 
+type
+mlircl_aux =  (* mlir constructors *)
+  MLIRCL_Mlircl of id * mlir_pexp
+
 type 
 tannot_opt = 
    Typ_annot_opt_aux of tannot_opt_aux * l
@@ -390,6 +428,10 @@ type
 type_union = 
    Tu_aux of type_union_aux * l
 
+type
+mlircl =
+   MLIRCL_aux of mlircl_aux * l
+
 type subst_aux =  (* instantiation substitution *)
  | IS_typ of kid * atyp (* instantiate a type variable with a type *)
  | IS_id of id * id (* instantiate an identifier with another identifier *)
@@ -409,7 +451,6 @@ and index_range =
 type 
 default_typing_spec_aux =  (* Default kinding or typing assumption, and default order for literal vectors and vector shorthands *)
    DT_order of kind * atyp
-
 
 type mpat_aux =  (* Mapping pattern. Mostly the same as normal patterns but only constructible parts *)
  | MP_lit of lit
@@ -448,6 +489,12 @@ type mapdef_aux =  (* mapping definition (bidirectional pattern-match function) 
 type mapdef =
  | MD_aux of ( mapdef_aux) * l
 
+type mlirdef_aux =  (* mapping definition (bidirectional pattern-match function) *)
+ | MLIRD_cl of id * ( mlircl) list
+
+type mlirdef =
+ | MLIRD_aux of ( mlirdef_aux) * l
+
 type outcome_spec_aux =  (* outcome declaration *)
  | OV_outcome of id * typschm * kinded_id list
 
@@ -482,6 +529,7 @@ scattered_def_aux =  (* Function and type union definitions that can be spread a
  | SD_funcl of funcl (* scattered function definition clause *)
  | SD_variant of id * typquant (* scattered union definition header *)
  | SD_unioncl of id * type_union (* scattered union definition member *)
+ | SD_mlircl of id * mlircl (* scattered nlir definition member *)
  | SD_mapping of id * tannot_opt
  | SD_mapcl of id * mapcl
  | SD_end of id (* scattered definition end *)
@@ -529,6 +577,7 @@ def =  (* Top-level definition *)
  | DEF_fundef of fundef (* function definition *)
  | DEF_mapdef of mapdef (* mapping definition *)
  | DEF_impl of funcl (* impl definition *)
+ | DEF_mlirdef of mlirdef (* impl definition *)
  | DEF_val of letbind (* value definition *)
  | DEF_overload of id * id list (* operator overload specifications *)
  | DEF_fixity of prec * Big_int.num * id (* fixity declaration *)

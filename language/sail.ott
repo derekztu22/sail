@@ -651,6 +651,11 @@ mapdef :: 'MD_' ::=
   {{ aux _ annot }} {{ auxparam 'a }}
   | mapping id tannot_opt = { mapcl1 , ... , mapcln } :: :: mapping {{ texlong }}
 
+mlirdef :: 'MLIRD_' ::=
+  {{ com mlirdef definition }}
+  {{ aux _ annot }} {{ auxparam 'a }}
+  | id { mlircl1 , ... , mlircln } :: :: cl
+
 letbind :: 'LB_' ::=
   {{ com let binding }}
   {{ aux _ annot }} {{ auxparam 'a }}
@@ -723,6 +728,8 @@ scattered_def :: 'SD_' ::=
   | union id member type_union :: :: unioncl
 {{ texlong }} {{ com scattered union definition member }}
 
+  | mlir clause id =  mlircl :: :: mlircl
+
   | scattered mapping id : tannot_opt :: :: mapping
 
   | mapping clause id = mapcl :: :: mapcl
@@ -740,6 +747,36 @@ dec_spec :: 'DEC_' ::=
   {{ com register declarations }}
   {{ aux _ annot }} {{ auxparam 'a }}
   | register effect effect' typ id = opt_exp                    :: :: reg
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MLIR                                                  %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+mliratt :: 'MLIRatt_' ::=
+  {{ com pattern match }}
+  {{ aux _ annot }} {{ auxparam 'a }}
+  | id :: :: id
+  | id id1 mlirlit :: :: ctor
+
+mlirlit :: 'MLIRLit_' ::=
+  {{ com pattern match }}
+  {{ aux _ annot }} {{ auxparam 'a }}
+  | string :: :: string
+
+mlirpat :: 'MLIRP_' ::=
+  {{ com pattern match }}
+  {{ aux _ annot }} {{ auxparam 'a }}
+  | mlirlit mliratt0 and .. and mlirattn :: :: var 
+
+mlir_pexp :: 'MLIRPat_' ::=
+  {{ com pattern match}}
+  {{ aux _ annot }} {{ auxparam 'a }}
+  | mlirpat exp :: :: exp
+
+mlircl :: 'MLIRCL_' ::=
+  {{ com pattern match }}
+  {{ aux _ annot }} {{ auxparam 'a }}
+  | id mlir_pexp :: :: Mlircl 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Top-level definitions                                        %
@@ -763,6 +800,8 @@ def :: 'DEF_' ::=
     {{ com function definition }}
   | mapdef                                             :: :: mapdef
     {{ com mapping definition }}
+  | mlirdef                                            :: :: mlirdef
+    {{ com mlir definition }}
   | impl funcl                                         :: :: impl
     {{ com impl definition }}
   | letbind                                            :: :: val

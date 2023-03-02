@@ -83,6 +83,12 @@ let rec last_scattered_mapcl id = function
   | _ :: defs -> last_scattered_mapcl id defs
   | [] -> true
 
+let rec last_scattered_mlircl id = function
+  | DEF_scattered (SD_aux (SD_mlircl (mid, _), _)) :: _
+       when Id.compare mid id = 0 -> false
+  | _ :: defs -> last_scattered_mlircl id defs
+  | [] -> true
+
 (* Nothing cares about these and the AST should be changed *)
 let fake_rec_opt l = Rec_aux (Rec_nonrec, gen_loc l)
 
@@ -102,6 +108,20 @@ let rec filter_union_clauses id = function
      def :: filter_union_clauses id defs
   | [] -> []
 
+let rec get_mlir_clauses id = function
+  | DEF_scattered (SD_aux (SD_mlircl (mlirid, mlircl), _)) :: defs when Id.compare id mlirid = 0 ->
+     mlircl :: get_mlir_clauses id defs
+  | _ :: defs ->
+     get_mlir_clauses id defs
+  | [] -> []
+
+let rec filter_mlir_clauses id = function
+  | DEF_scattered (SD_aux (SD_mlircl (mlirid, mlircl), _)) :: defs when Id.compare id mlirid = 0 ->
+     filter_mlir_clauses id defs
+  | def :: defs ->
+     def :: filter_mlir_clauses id defs
+  | [] -> []
+
 let rec descatter' funcls mapcls = function
   (* For scattered functions we collect all the seperate function
      clauses until we find the last one, then we turn that function
@@ -119,8 +139,10 @@ let rec descatter' funcls mapcls = function
   | DEF_scattered (SD_aux (SD_funcl funcl, _)) :: defs ->
      let id = funcl_id funcl in
      begin match Bindings.find_opt id funcls with
-     | Some clauses -> descatter' (Bindings.add id (funcl :: clauses) funcls) mapcls defs
-     | None -> descatter' (Bindings.add id [funcl] funcls) mapcls defs
+     | Some clauses ->
+       descatter' (Bindings.add id (funcl :: clauses) funcls) mapcls defs
+     | None ->
+       descatter' (Bindings.add id [funcl] funcls) mapcls defs
      end
 
   (* Scattered mappings are handled the same way as scattered functions *)
@@ -138,6 +160,16 @@ let rec descatter' funcls mapcls = function
      begin match Bindings.find_opt id mapcls with
      | Some clauses -> descatter' funcls (Bindings.add id (mapcl :: clauses) mapcls) defs
      | None -> descatter' funcls (Bindings.add id [mapcl] mapcls) defs
+     end
+
+  | DEF_scattered (SD_aux (SD_mlircl (id, mlircl), (l, tannot))) :: defs ->
+     let mlircls = get_mlir_clauses id defs in
+     let mlircls = mlircl :: mlircls in
+     begin match mlircls with
+     | [] -> raise (Reporting.err_general l "No clauses found for scattered mlir type")
+     | _ ->
+       DEF_mlirdef (MLIRD_aux (MLIRD_cl (id, mlircls), (gen_loc l, tannot)))
+       :: descatter' funcls mapcls (filter_mlir_clauses id defs)
      end
 
   (* For scattered unions, when we find a union declaration we

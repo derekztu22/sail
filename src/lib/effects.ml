@@ -277,6 +277,7 @@ let can_have_direct_side_effect = function
   | DEF_type _ -> false
   | DEF_fundef _ -> true
   | DEF_mapdef _ -> false 
+  | DEF_mlirdef _ -> false
   | DEF_impl _ -> true
   | DEF_val _ -> true
   | DEF_spec _ -> true

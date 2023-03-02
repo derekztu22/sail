@@ -372,6 +372,9 @@ val map_scattered_annot : ('a annot -> 'b annot) -> 'a scattered_def -> 'b scatt
 val map_def_annot : ('a annot -> 'b annot) -> 'a def -> 'b def
 val map_ast_annot : ('a annot -> 'b annot) -> 'a ast -> 'b ast
 
+val map_mlirpat_annot : ('a annot -> 'b annot) -> 'a mlirpat -> 'b mlirpat
+val map_mlir_pexp_annot : ('a annot -> 'b annot) -> 'a mlir_pexp -> 'b mlir_pexp
+
 (** {2 Extract locations from terms} *)
 val id_loc : id -> Parse_ast.l
 val kid_loc : kid -> Parse_ast.l
@@ -461,6 +464,9 @@ val construct_pexp : 'a pat * ('a exp) option * 'a exp * (Ast.l * 'a) ->  'a pex
 
 val destruct_mpexp : 'a mpexp -> 'a mpat * ('a exp) option * (Ast.l * 'a)
 val construct_mpexp : 'a mpat * ('a exp) option * (Ast.l * 'a) ->  'a mpexp
+
+val destruct_mlir_pexp : 'a mlir_pexp -> 'a mlirpat * ('a exp) option * 'a exp  * (Ast.l * 'a)
+val construct_mlir_pexp : 'a mlirpat * ('a exp) option * 'a exp * (Ast.l * 'a) ->  'a mlir_pexp
 
 val is_valspec : id -> 'a def -> bool
 val is_fundef : id -> 'a def -> bool
