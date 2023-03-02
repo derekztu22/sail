@@ -68,24 +68,24 @@
 open Libsail
 
 let opt_pytorch : bool ref = ref true
-let opt_tosa = ref true
-let opt_torch_mlir = ref false
+let opt_tosa : bool ref = ref true
+let opt_torch_mlir : bool ref = ref true
 
 let mlir_options = [
   ( "-pytorch",
     Arg.Set opt_pytorch,
-    "output pytorch");
+    "output pytorch files");
   ( "-tosa",
     Arg.Set opt_tosa,
-    "output tosa");
+    "output tosa files");
   ( "-torch_mlir",
     Arg.Set opt_torch_mlir,
-    "output torch_mlir");
+    "output torch_mlir files");
 ]
  
 let mlir_target _ out_file ast effect_info _ =
   let ast, env = Type_error.check Type_check.initial_env ast in
-  let close, output_chan = match out_file with Some f -> true, open_out (f ^ ".c") | None -> false, stdout in
+  let close, output_chan = match out_file with Some f -> true, open_out (f ^ ".td") | None -> false, stdout in
   Reporting.opt_warnings := true;
   Mlir_backend.compile_ast env effect_info output_chan ast (!opt_pytorch) (!opt_tosa) (!opt_torch_mlir);
   flush output_chan
