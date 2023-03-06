@@ -111,7 +111,7 @@ let rec iterate_mlircl mlircl_string_list =
       let first_quote_replace = Str.replace_first quote_regex "[{" type_regex_replace in
       Str.global_replace quote_regex "}]" first_quote_replace ^ "\n" ^ iterate_mlircl t
 
-    else if str_contains h "input1" then
+    else if str_contains (List.hd (String.split_on_char ':' h)) "input1" then
       let rec further_inputs str_list num =
         match str_list with
         | [] -> ("", num)
@@ -184,7 +184,7 @@ let rec out_test_mlircl mlircl_string_list outtype =
       "" ^ out_test_mlircl t outtype
     else if str_contains h "description" then
       "" ^ out_test_mlircl t outtype
-    else if str_contains h "input1" then
+    else if str_contains (List.hd (String.split_on_char ':' h)) "input1" then
       if outtype = "test_param" then
         let rec further_inputs str_list num =
           match str_list with
@@ -211,7 +211,7 @@ let rec out_test_mlircl mlircl_string_list outtype =
           match str_list with
           | [] -> ("", num)
           | h :: t ->
-            if str_contains h "input"  then
+            if str_contains (List.hd (String.split_on_char ':' h)) "input"  then
               let further_input_strings, _ = further_params t (Int.add num 1) in 
                ", %arg" ^ string_of_int(num) ^ further_input_strings, num 
             else
@@ -223,7 +223,7 @@ let rec out_test_mlircl mlircl_string_list outtype =
           match str_list with
           | [] -> ""
           | h :: t ->
-            if str_contains h "input"  then
+            if str_contains (List.hd (String.split_on_char ':' h)) "input"  then
               let in_type = String.split_on_char ':' h in
               let in_type = String.lowercase_ascii (List.hd (String.split_on_char '(' (List.nth in_type 1))) in
               let in_type = in_type ^ "<13x21x3xf32>" in
@@ -537,37 +537,58 @@ let rec shape_lib_gen_mlircl mlircl_string_list=
     else if str_contains h "description" then
       "" ^ shape_lib_gen_mlircl t
 
-    else if str_contains h "input1" then
-      let rec further_inputs str_list =
+    else if str_contains (List.hd (String.split_on_char ':' h)) "input1" then
+      let rec further_inputs str_list num =
         match str_list with
-        | [] -> ""
+        | [] -> ("", Int.add num 1)
         | h :: t ->
           if str_contains (List.hd (String.split_on_char ':' h)) "input"  then
             let in_type = String.split_on_char ':' h in
             let in_type = List.hd (String.split_on_char '(' (List.nth in_type 1)) in
-            let further_input_strings = further_inputs t in 
+            let further_input_strings, n = further_inputs t (Int.add num 1) in 
             if str_contains in_type "Tensor" then
-              ", other: List[int]" ^ further_input_strings
+              ", input" ^ string_of_int(num) ^  ": List[int]" ^ further_input_strings, n
             else
-              "other: int" ^ further_input_strings
+              ", input" ^ string_of_int(num) ^ ": int" ^ further_input_strings, n
           else
-            let further_input_strings = (further_inputs t) in 
-            ("" ^ further_input_strings)
+            let further_input_strings, n = (further_inputs t (Int.add num 1)) in 
+            ("" ^ further_input_strings, num)
       in
+
       let in_type = String.split_on_char ':' h in
       let in_type = List.hd (String.split_on_char '(' (List.nth in_type 1)) in
-      if str_contains in_type "Tensor" then
-        "input1: List[int]" ^ further_inputs t ^ ", alpha: float = 1) -> " ^ shape_lib_gen_mlircl t
-      else
-        "input1: int" ^ further_inputs t ^ ") ->" ^ shape_lib_gen_mlircl t
+      let further_input_strings, n = further_inputs t 2 in
 
-    else if str_contains h "output" then
-      let out_type = String.split_on_char ':' h in
-      let out_type = List.hd(String.split_on_char '(' (List.nth out_type 1)) in
-      if str_contains out_type "Tensor" then
-        "List[int]:\n    return upstream_shape_functions.broadcast(input1, other)\n" ^ shape_lib_gen_mlircl t
+      let rec further_outputs str_list n = 
+        match str_list with
+        | [] -> ""
+        | h :: t ->
+          if str_contains h "output" then
+            let out_type = String.split_on_char ':' h in
+            let out_type = List.hd(String.split_on_char '(' (List.nth out_type 1)) in
+
+            let further_outs n = 
+              let rec loop i limit = 
+                if i = limit then
+                  ""
+                else
+                  ", input" ^ string_of_int(i) ^ (loop (Int.add i 1) n)
+              in
+              loop 2 n
+            in
+
+            if str_contains out_type "Tensor" then
+              "List[int]:\n    return upstream_shape_functions.broadcast(input1" ^ further_outs n ^ ")\n"
+            else
+              "int:\n    return upstream_shape_functions.broadcast(input1" ^ further_outs n ^ ")\n" 
+          else
+            "" ^ further_outputs t n
+       in
+
+      if str_contains in_type "Tensor" then
+        "input1: List[int]" ^ further_input_strings ^ ", alpha: float = 1) -> " ^ further_outputs t n
       else
-        "int:\n    return upstream_shape_functions.broadcast(input1, other)\n" ^ shape_lib_gen_mlircl t
+        "input1: int" ^ further_input_strings ^ ") ->" ^ further_outputs t n
     else
       "" ^ shape_lib_gen_mlircl t
 
@@ -584,7 +605,7 @@ let rec torch_ods_gen_mlircl mlircl_string_list =
     else if str_contains h "description" then
       "" ^ torch_ods_gen_mlircl t
 
-    else if str_contains h "input1" then
+    else if str_contains (List.hd (String.split_on_char ':' h)) "input1" then
       let whitespace_regex = Str.regexp " " in
       let rec further_inputs str_list =
         match str_list with
