@@ -116,7 +116,7 @@ let rec iterate_mlircl mlircl_string_list =
         match str_list with
         | [] -> ("", num)
         | h :: t ->
-          if str_contains h "input"  then
+          if str_contains (List.hd (String.split_on_char ':' h)) "input"  then
             let in_type = String.split_on_char ':' h in
             let in_type = String.split_on_char '(' (List.nth in_type 1) in
             let further_input_strings, _ = further_inputs t (Int.add num 1) in 
@@ -190,7 +190,7 @@ let rec out_test_mlircl mlircl_string_list outtype =
           match str_list with
           | [] -> ("", num)
           | h :: t ->
-            if str_contains h "input"  then
+            if str_contains (List.hd (String.split_on_char ':' h)) "input"  then
               let in_type = String.split_on_char ':' h in
               let in_type = String.lowercase_ascii(List.hd (String.split_on_char '(' (List.nth in_type 1))) in
               let in_type = in_type ^ "<13x21x3xf32>" in
@@ -289,42 +289,106 @@ let rec binops_mlircl mlircl_string_list outtype=
       "" ^ binops_mlircl t outtype
 
     else if str_contains h "input1" then
-      let rec further_inputs str_list =
+
+      let rec further_inputs str_list num =
+        match str_list with
+        | [] -> ("", Int.add num 1)
+        | h :: t ->
+          if str_contains (List.hd (String.split_on_char ':' h)) "input"  then
+            let in_type = String.split_on_char ':' h in
+            let in_type = List.hd (String.split_on_char '(' (List.nth in_type 1)) in
+            let further_input_strings, n = further_inputs t (Int.add num 1) in 
+             ", const " ^ in_type ^ "& input" ^ string_of_int(num) ^ further_input_strings, n
+          else
+            let further_input_strings, n = (further_inputs t (Int.add num 1)) in 
+            ("" ^ further_input_strings, num)
+      in
+
+      let in_type = String.split_on_char ':' h in
+      let in_type = List.hd (String.split_on_char '(' (List.nth in_type 1)) in
+      let further_input_string, n = (further_inputs t 2) in
+
+      let rec execute_function str_list outtype n = 
         match str_list with
         | [] -> ""
         | h :: t ->
-          if str_contains h "input"  then
-            let in_type = String.split_on_char ':' h in
-            let in_type = List.hd (String.split_on_char '(' (List.nth in_type 1)) in
-            let further_input_strings = further_inputs t in 
-            "const " ^ in_type ^ "& other" ^ further_input_strings
-          else
-            let further_input_strings = (further_inputs t) in 
-            ("" ^ further_input_strings)
-      in
-      if outtype = "norm" then 
-        let in_type = String.split_on_char ':' h in
-        let in_type = List.hd (String.split_on_char '(' (List.nth in_type 1)) in
-        "const " ^ in_type ^ "& self, " ^ further_inputs t ^ ", const Scalar& alpha) {" ^ binops_mlircl t outtype
-      else if outtype = "_" then 
-        let in_type = String.split_on_char ':' h in
-        let in_type = List.hd (String.split_on_char '(' (List.nth in_type 1)) in
-        in_type ^ "& self, " ^ further_inputs t ^ ", const Scalar& alpha) {" ^ binops_mlircl t outtype
+          if str_contains h "execute_mm" then
+            if outtype = "norm" then
+              let headers = "\n#ifndef MM_H\n#define MM_H\n#include <c10/util/irange.h>\n#endif\n" in 
+              let quotation_regex = Str.regexp "\"" in 
+              let whitespace_regex = Str.regexp " " in 
+              let execute_str = Str.global_replace quotation_regex "" (List.nth (String.split_on_char '=' h) 1) in
+              let scalar_t = List.hd (String.split_on_char '@' execute_str) in
+              let scalar_t = "\n  using scalar_t = " ^ scalar_t ^ ";\n" in
+              let setup_var = "" in
+              let abcd_list = ["."; "a"; "b"; "c"; "d"] in
 
+              let setup_var n =
+                let rec loop i limit = 
+                  if i = limit then 
+                    ""
+                  else
+                    let size_str = ("  const auto input" ^ string_of_int(i) ^  "_sizes = input" ^
+                                   string_of_int(i) ^ ".sizes();\n") in
+                    let tensor_str = ("  Tensor " ^ List.nth abcd_list i ^ " = input" ^
+                                     string_of_int(i) ^ ".clone(at::MemoryFormat::Contiguous);\n") in
+                    let ptr_str = ("  auto " ^ List.nth abcd_list i ^ "_ptr = " ^
+                                  List.nth abcd_list i ^ ".data_ptr<scalar_t>();\n") in
+                    size_str ^ tensor_str ^ ptr_str ^ (loop (Int.add i 1) n)
+                in
+                loop 1 n
+              in
+ 
+              let rec find_ops ex_str =
+                match ex_str with
+                | [] -> ""
+                | h :: t ->
+                  let op_list = ["*"; "-"; "+"] in
+                  let str = Str.global_replace whitespace_regex "" h in
+                  if List.exists ((=)str) op_list then
+                    str ^ " " ^ find_ops t
+                  else 
+                    "" ^ find_ops t 
+              in
+
+              let op_list = find_ops (String.split_on_char ' ' (List.nth (String.split_on_char '@' execute_str) 1)) in
+              let op_list = String.split_on_char ' ' op_list in
+              let op_str = ("    " ^ List.nth abcd_list (n-1) ^ "_ptr[j + l*length] = " ^
+                            List.nth abcd_list 1 ^ "_ptr[j]" ^
+                            List.nth op_list 0 ^ List.nth abcd_list 2 ^ "_ptr[l]"  ^ List.nth op_list 1 ^
+                            List.nth abcd_list (n-1) ^ "_ptr[j + l*length];\n") in
+          
+              let forl = ("  const int64_t length = input1_sizes[0];\n  for (const auto l : c10::irange(length)) {\n" ^
+                          "    for (const auto j : c10::irange(length)) {\n" ^ op_str ^
+                          "    }\n  }\n  return " ^ List.nth abcd_list (n-1)  ^ ";\n}\n") in
+              headers ^ scalar_t ^ (setup_var n) ^ forl
+            else if outtype = "_" then
+              "\nreturn input1;\n}\n"
+            else if outtype = "_out" then
+              "\nreturn result;\n}\n"
+            else
+            ""
+          else if str_contains h "execute_func" then
+            if outtype = "norm" then
+              "\nreturn input1;\n}\n"
+            else if outtype = "_" then
+              "\nreturn input1;\n}\n"
+            else if outtype = "_out" then
+              "\nreturn result;\n}\n"
+            else
+            ""
+          else
+            "" ^ execute_function t outtype n
+      in
+
+      if outtype = "norm" then   
+        "const " ^ in_type ^ "& input1" ^ further_input_string ^ ", const Scalar& alpha) {" ^ execute_function t outtype n
+      else if outtype = "_" then 
+        in_type ^ "& input1" ^ further_input_string ^ ", const Scalar& alpha) {" ^ execute_function t outtype n
       else if outtype = "_out" then 
-        let in_type = String.split_on_char ':' h in
-        let in_type = List.hd (String.split_on_char '(' (List.nth in_type 1)) in
-        "const " ^ in_type ^ "& self, " ^ further_inputs t ^ ", const Scalar& alpha," ^ find_return_type t ^ "& result) {"^ binops_mlircl t outtype 
+        "const " ^ in_type ^ "& input1" ^ further_input_string ^ ", const Scalar& alpha," ^ find_return_type t ^ "& result) {"^ execute_function t outtype n
       else
        "" ^ binops_mlircl t outtype
-
-    else if str_contains h "output" then
-      if outtype = "norm" || outtype = "_" then
-        "return self;}\n" ^ binops_mlircl t outtype
-      else if outtype = "_out" then
-        "return result;}\n" ^ binops_mlircl t outtype
-      else
-      "" ^ binops_mlircl t outtype
     else
       "" ^ binops_mlircl t outtype
 
@@ -366,29 +430,31 @@ let rec nfunctions_mlircl mlircl_string_list outtype=
           "" ^ nfunctions_inner_mlircl t outtype instr_name
         else if str_contains h "description" then
           "" ^ nfunctions_inner_mlircl t outtype instr_name
-        else if str_contains h "input1" then
-          (*TODO make names able to be changed*)
-          let rec further_inputs str_list =
+        else if str_contains (List.hd (String.split_on_char ':' h)) "input1" then
+
+          let rec further_inputs str_list num =
             match str_list with
-            | [] -> ""
+            | [] -> ("", num)
             | h :: t ->
-              if str_contains h "input"  then
+              if str_contains (List.hd (String.split_on_char ':' h)) "input"  then
                 let in_type = String.split_on_char ':' h in
                 let in_type = Str.replace_first whitespace_regex "" (List.hd (String.split_on_char '(' (List.nth in_type 1))) in
-                let further_input_strings = further_inputs t in 
-                in_type ^ " other" ^ further_input_strings
+                let further_input_strings, _ = further_inputs t (Int.add num 1) in 
+                 ", " ^ in_type ^ " input" ^ string_of_int(num) ^  further_input_strings, num 
               else
-                let further_input_strings = (further_inputs t) in 
-                ("" ^ further_input_strings)
+                let further_input_strings, _ = (further_inputs t (Int.add num 1)) in 
+                ("" ^ further_input_strings, num)
           in
+
           let in_type = String.split_on_char ':' h in
           let in_type = Str.replace_first whitespace_regex "" (List.hd (String.split_on_char '(' (List.nth in_type 1))) in
+          let further_input_string, _ = further_inputs t 2 in
           if outtype = "norm" then 
-            in_type ^ " self, " ^ further_inputs t ^ ", *, Scalar alpha=1) -> " ^ nfunctions_inner_mlircl t outtype instr_name
+            in_type ^ " input1" ^ further_input_string ^ ", *, Scalar alpha=1) -> " ^ nfunctions_inner_mlircl t outtype instr_name
           else if outtype = "_" then 
-            in_type ^ "(a!) self, " ^ further_inputs t ^ ", *, Scalar alpha=1) -> " ^ nfunctions_inner_mlircl t outtype instr_name
+            in_type ^ "(a!) input1" ^ further_input_string ^ ", *, Scalar alpha=1) -> " ^ nfunctions_inner_mlircl t outtype instr_name
           else if outtype = "_out" then 
-            in_type ^ " self, " ^ further_inputs t ^ ", *, Scalar alpha=1," ^ find_return_type t ^ "(a!) out) -> " ^ nfunctions_inner_mlircl t outtype instr_name 
+            in_type ^ " input1" ^ further_input_string ^ ", *, Scalar alpha=1," ^ find_return_type t ^ "(a!) out) -> " ^ nfunctions_inner_mlircl t outtype instr_name 
           else
            "" ^ nfunctions_inner_mlircl t outtype instr_name
         else if str_contains h "output" then
@@ -476,7 +542,7 @@ let rec shape_lib_gen_mlircl mlircl_string_list=
         match str_list with
         | [] -> ""
         | h :: t ->
-          if str_contains h "input"  then
+          if str_contains (List.hd (String.split_on_char ':' h)) "input"  then
             let in_type = String.split_on_char ':' h in
             let in_type = List.hd (String.split_on_char '(' (List.nth in_type 1)) in
             let further_input_strings = further_inputs t in 
@@ -491,17 +557,17 @@ let rec shape_lib_gen_mlircl mlircl_string_list=
       let in_type = String.split_on_char ':' h in
       let in_type = List.hd (String.split_on_char '(' (List.nth in_type 1)) in
       if str_contains in_type "Tensor" then
-        "self: List[int]" ^ further_inputs t ^ ", alpha: float = 1) -> " ^ shape_lib_gen_mlircl t
+        "input1: List[int]" ^ further_inputs t ^ ", alpha: float = 1) -> " ^ shape_lib_gen_mlircl t
       else
-        "self: int" ^ further_inputs t ^ ") ->" ^ shape_lib_gen_mlircl t
+        "input1: int" ^ further_inputs t ^ ") ->" ^ shape_lib_gen_mlircl t
 
     else if str_contains h "output" then
       let out_type = String.split_on_char ':' h in
       let out_type = List.hd(String.split_on_char '(' (List.nth out_type 1)) in
       if str_contains out_type "Tensor" then
-        "List[int]:\n    return upstream_shape_functions.broadcast(self, other)\n" ^ shape_lib_gen_mlircl t
+        "List[int]:\n    return upstream_shape_functions.broadcast(input1, other)\n" ^ shape_lib_gen_mlircl t
       else
-        "int:\n    return upstream_shape_functions.broadcast(self, other)\n" ^ shape_lib_gen_mlircl t
+        "int:\n    return upstream_shape_functions.broadcast(input1, other)\n" ^ shape_lib_gen_mlircl t
     else
       "" ^ shape_lib_gen_mlircl t
 
@@ -524,7 +590,7 @@ let rec torch_ods_gen_mlircl mlircl_string_list =
         match str_list with
         | [] -> ""
         | h :: t ->
-          if str_contains h "input"  then
+          if str_contains (List.hd (String.split_on_char ':' h)) "input"  then
             let in_type = String.split_on_char ':' h in
             let in_type = Str.replace_first whitespace_regex "" (List.hd (String.split_on_char '(' (List.nth in_type 1))) in
             let further_input_strings = further_inputs t in 
@@ -597,10 +663,7 @@ let compile_ast env effect_info output_chan ast opt_pytorch opt_tosa opt_torch_m
     | [] -> ""
     | def :: defs ->
        let td  =  td_def def outtype in
-       (*if String.length td > 0 then*)
-         td ^  process_defs_to_tosa outtype defs
-       (*else
-         process_defs_to_tosa outtype defs*)
+       td ^  process_defs_to_tosa outtype defs
   in
 
   let outtype = "td" in
@@ -691,3 +754,6 @@ let compile_ast env effect_info output_chan ast opt_pytorch opt_tosa opt_torch_m
   let output_chan = open_out fname10 in
   Printf.fprintf output_chan "%s" tosa_uncategorized;
   close_out output_chan;
+
+  print_endline(tosa_nfunctions);
+  print_endline(tosa_binops)
