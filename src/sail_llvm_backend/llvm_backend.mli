@@ -71,4 +71,4 @@ open Ast_defs
 open Jib
 open Type_check
 
-val compile_ast : Env.t -> Effects.side_effect_info -> out_channel -> tannot ast -> bool -> bool -> bool -> unit
+val compile_ast : Env.t -> Effects.side_effect_info -> out_channel -> tannot ast -> unit

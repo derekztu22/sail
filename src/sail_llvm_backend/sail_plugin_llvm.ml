@@ -79,7 +79,7 @@ let llvm_target _ out_file ast effect_info _ =
   let ast, env = Type_error.check Type_check.initial_env ast in
   let close, output_chan = match out_file with Some f -> true, open_out (f ^ ".td") | None -> false, stdout in
   Reporting.opt_warnings := true;
-  Llvm_backend.compile_ast env effect_info output_chan ast (!opt_instr) (!opt_instr) (!opt_instr);
+  Llvm_backend.compile_ast env effect_info output_chan ast;
   flush output_chan
 
 let _ =
