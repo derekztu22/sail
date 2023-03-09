@@ -450,11 +450,11 @@ let rec nfunctions_mlircl mlircl_string_list outtype=
           let in_type = Str.replace_first whitespace_regex "" (List.hd (String.split_on_char '(' (List.nth in_type 1))) in
           let further_input_string, _ = further_inputs t 2 in
           if outtype = "norm" then 
-            in_type ^ " input1" ^ further_input_string ^ ", *, Scalar alpha=1) -> " ^ nfunctions_inner_mlircl t outtype instr_name
+            in_type ^ " self" ^ further_input_string ^ ", *, Scalar alpha=1) -> " ^ nfunctions_inner_mlircl t outtype instr_name
           else if outtype = "_" then 
-            in_type ^ "(a!) input1" ^ further_input_string ^ ", *, Scalar alpha=1) -> " ^ nfunctions_inner_mlircl t outtype instr_name
+            in_type ^ "(a!) self" ^ further_input_string ^ ", *, Scalar alpha=1) -> " ^ nfunctions_inner_mlircl t outtype instr_name
           else if outtype = "_out" then 
-            in_type ^ " input1" ^ further_input_string ^ ", *, Scalar alpha=1," ^ find_return_type t ^ "(a!) out) -> " ^ nfunctions_inner_mlircl t outtype instr_name 
+            in_type ^ " self" ^ further_input_string ^ ", *, Scalar alpha=1," ^ find_return_type t ^ "(a!) out) -> " ^ nfunctions_inner_mlircl t outtype instr_name 
           else
            "" ^ nfunctions_inner_mlircl t outtype instr_name
         else if str_contains h "output" then
@@ -578,17 +578,20 @@ let rec shape_lib_gen_mlircl mlircl_string_list=
             in
 
             if str_contains out_type "Tensor" then
-              "List[int]:\n    return upstream_shape_functions.broadcast(input1" ^ further_outs n ^ ")\n"
+              if n = 4 then
+                "List[int]:\n    return upstream_shape_functions.broadcast_three(self" ^ further_outs n ^ ")\n"
+              else 
+                "List[int]:\n    return upstream_shape_functions.broadcast(self" ^ further_outs n ^ ")\n"
             else
-              "int:\n    return upstream_shape_functions.broadcast(input1" ^ further_outs n ^ ")\n" 
+              "int:\n    return upstream_shape_functions.broadcast(self" ^ further_outs n ^ ")\n" 
           else
             "" ^ further_outputs t n
        in
 
       if str_contains in_type "Tensor" then
-        "input1: List[int]" ^ further_input_strings ^ ", alpha: float = 1) -> " ^ further_outputs t n
+        "self: List[int]" ^ further_input_strings ^ ", alpha: float = 1) -> " ^ further_outputs t n
       else
-        "input1: int" ^ further_input_strings ^ ") ->" ^ further_outputs t n
+        "self: int" ^ further_input_strings ^ ") ->" ^ further_outputs t n
     else
       "" ^ shape_lib_gen_mlircl t
 
