@@ -36,6 +36,8 @@ depends: [
   "sail_ocaml_backend" {= version & post}
   "sail_c_backend" {= version & post}
   "sail_mlir_backend" {= version & post}
+  "sail_llvm_backend" {= version & post}
+  "sail_qemu_backend" {= version & post}
   "sail_smt_backend" {= version & post}
   "sail_lem_backend" {= version & post}
   "sail_coq_backend" {= version & post}
