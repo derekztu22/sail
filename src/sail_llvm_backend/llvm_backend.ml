@@ -111,7 +111,7 @@ let formats_string mapcl_string =
 
     let head = "class RVInst" in
     let tdparams = "<dag outs, dag ins, string opcodestr, string argstr>" in
-    let class_def = "\n: RVInstr<outs, ins, opcodestr, argstr, [], InstFormatR> {\n" in
+    let class_def = "\n: RVInst<outs, ins, opcodestr, argstr, [], InstFormatR> {\n" in
     let end_parenth = "let Uses = [ML];\n}\n\n" in
     let mapcl_string = Str.global_replace leftp_regex "" mapcl_string in
     let mapcl_string = Str.global_replace rightp_regex "" mapcl_string in
@@ -182,9 +182,9 @@ let scheduler_string mapcl_string =
 let u_scheduler_string mapcl_string = 
   if str_contains mapcl_string "_MM" then
     let mm_regex = Str.regexp_string "_MM" in
-    let inst_name = List.hd (Str.split mm_regex mapcl_string) in
-    "def ReadAdvance<Read" ^ inst_name ^ ", []>;\n" ^
-    "def WriteRes<Write" ^ inst_name ^ ", []>;\n"
+    let inst_name = List.hd (Str.split mm_regex mapcl_string) ^ "_MM" in
+    "def : ReadAdvance<Read" ^ inst_name ^ ", 0>;\n" ^
+    "def : WriteRes<Write" ^ inst_name ^ ", []>;\n"
   else
     ""
 
