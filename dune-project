@@ -86,6 +86,12 @@ http://www.cl.cam.ac.uk/~pes20/sail/.
     (libsail (= :version))))
 
 (package
+  (name sail_qemu_backend)
+  (synopsis "Sail to QEMU translation")
+  (depends
+    (libsail (= :version))))
+
+(package
   (name sail_smt_backend)
   (synopsis "Sail to SMT translation")
   (depends
