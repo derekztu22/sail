@@ -89,6 +89,10 @@ let sizeof_reg reg =
     5
   else if reg = "vs1" then
     5
+  else if reg = "rs1" then
+    5
+  else if reg = "ms3" then
+    5
   else if reg = "md" then
     5
   else
@@ -141,9 +145,17 @@ let formats_string mapcl_string =
             "let Inst{" ^ string_of_int(bits_left) ^ "-" ^ string_of_int(bits_left - (sizeof_reg "vs2") + 1) ^
             "} = vs2;\n" ^ bit_matching t (bits_left - (sizeof_reg "vs2"))
 
+          else if str_contains h "rs1" then
+            "let Inst{" ^ string_of_int(bits_left) ^ "-" ^ string_of_int(bits_left - (sizeof_reg "rs1") + 1) ^
+            "} = rs1;\n" ^ bit_matching t (bits_left - (sizeof_reg "rs1"))
+
           else if str_contains h "vs1" then
             "let Inst{" ^ string_of_int(bits_left) ^ "-" ^ string_of_int(bits_left - (sizeof_reg "vs1") + 1) ^
             "} = vs1;\n" ^ bit_matching t (bits_left - (sizeof_reg "vs1"))
+
+          else if str_contains h "ms3" then
+            "let Inst{" ^ string_of_int(bits_left) ^ "-" ^ string_of_int(bits_left - (sizeof_reg "ms3") + 1) ^
+            "} = ms3;\n" ^ bit_matching t (bits_left - (sizeof_reg "ms3"))
 
           else if str_contains h "md" then
             "let Inst{" ^ string_of_int(bits_left) ^ "-" ^ string_of_int(bits_left - (sizeof_reg "md") + 1) ^
@@ -165,8 +177,6 @@ let formats_string mapcl_string =
 
   else 
     ""
-
-
 let is_read_type mapcl_string =
   false
 
@@ -212,7 +222,10 @@ let instclass_string mapcl_string =
           let reg_regex = Str.regexp_string "reg_name" in
           let reg = List.nth (Str.split reg_regex h) 1 in
           if str_contains h "mreg" then 
-            "MR:$" ^ reg
+            if str_contains h "ms3" then
+              ""
+            else
+              "MR:$" ^ reg
           else if str_contains h "vreg" then 
             "VR:$" ^ reg
           else
@@ -233,6 +246,10 @@ let instclass_string mapcl_string =
           delimeter n ^ "VR:$vs2" ^ find_inregs t (n + 1)
         else if str_contains h "vs1" then
           delimeter n ^ "VR:$vs1" ^ find_inregs t (n + 1)
+        else if str_contains h "ms3" then
+          delimeter n ^ "MR:$ms3" ^ find_inregs t (n + 1)
+        else if str_contains h "rs1" then
+          delimeter n ^ "GPR:$rs1" ^ find_inregs t (n + 1)
         else
           find_inregs t n
     in
@@ -247,10 +264,14 @@ let instclass_string mapcl_string =
       | h :: t ->
         if str_contains h "md" then
           delimeter n ^ "$md" ^ find_order t (n+1)
+        else if str_contains h "ms3" then
+          delimeter n ^ "$ms3" ^ find_order t (n+1)
         else if str_contains h "vs2" then
           delimeter n ^ "$vs2" ^ find_order t (n+1)
         else if str_contains h "vs1" then
           delimeter n ^ "$vs1" ^ find_order t (n+1)
+        else if str_contains h "rs1" then
+          delimeter n ^ "(${rs1})" ^ find_order t (n+1)
         else
           find_order t n
     in
@@ -287,9 +308,13 @@ let instdef_string mapcl_string =
           let reg_name = Str.global_replace rightp_regex "" (List.nth (Str.split leftp_regex h) 1) in
           if str_contains reg_name "md" then
             delimeter n ^ "Write" ^ inst_name  ^ (find_sched_order t inst_name (n+1))
+          else if str_contains reg_name "ms3" then
+            delimeter n ^ "Write" ^ inst_name  ^ (find_sched_order t inst_name (n+1))
           else if str_contains reg_name "vs2" then
             delimeter n ^ "Read" ^ inst_name  ^ (find_sched_order t inst_name (n+1))
           else if str_contains reg_name "vs1" then
+            delimeter n ^ "Read" ^ inst_name  ^ (find_sched_order t inst_name (n+1))
+          else if str_contains reg_name "rs1" then
             delimeter n ^ "Read" ^ inst_name  ^ (find_sched_order t inst_name (n+1))
           else
             find_sched_order t inst_name n

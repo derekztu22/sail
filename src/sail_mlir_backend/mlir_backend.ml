@@ -350,8 +350,36 @@ let rec binops_mlircl mlircl_string_list outtype=
                   else 
                     "" ^ find_ops t 
               in
+ 
+              let get_execute n execute_str = 
+                if n = 4 then 
+                  let load_str = "asm volatile (\"vle32.v v0, %0 \n\t\" ::\"r\"((scalar_t) a_ptr));\n" ^
+                                 "asm volatile (\"vle32.v v1, %0 \n\t\" ::\"r\"((scalar_t) b_ptr));\n" ^
+                                 "asm volatile (\"load.mm m0, %0 \n\t\" ::\"r\"((scalar_t) c_ptr));\n" ^
+                  if str_contains execute_str "+" then
+                    let load_str = load_str ^ "asm volatile (\"macc.mm m0, v0, v1 \n\t\");\n"
+                  else if str_contains execute_str "-" then
+                    let load_str = load_str ^ "asm volatile (\"msacc.mm m0, v0, v1 \n\t\");\n"
+                  else
+                    ""
+                  let store_str = "asm volatile (\"store.mm m0, %0 \n\t\" ::\"r\"((scalar_t) c_ptr));\n"
+                  load_str ^ store_str ^ "return c;\n"
+               else if n = 3 then
+                  let load_str = "asm volatile (\"vle32.v v0, %0 \n\t\" ::\"r\"((scalar_t) a_ptr));\n" ^
+                  if str_contains execute_str "vertical" then
+                    let load_str = load_str ^ "asm volatile (\"mvv.mm m0, v0 \n\t\");\n" in
+                  else if str_contains execute_str "horizontal" then
+                    let load_str = load_str ^ "asm volatile (\"mvh.mm m0, v0 \n\t\");\n" in
+                  else
+                    ""
+                  let store_str = "asm volatile (\"store.mm m0, %0 \n\t\" ::\"r\"((scalar_t) b_ptr));\n"
+                  load_str ^ store_str ^ "return b;\n"
+               else
+                 ""
 
-              let op_list = find_ops (String.split_on_char ' ' (List.nth (String.split_on_char '@' execute_str) 1)) in
+              headers ^ scalar_t ^ (setup_var n) ^ (get_execute n execute_str) 
+
+              (*let op_list = find_ops (String.split_on_char ' ' (List.nth (String.split_on_char '@' execute_str) 1)) in
               let op_list = String.split_on_char ' ' op_list in
               let op_str = ("    " ^ List.nth abcd_list (n-1) ^ "_ptr[j + l*length] = " ^
                             List.nth abcd_list 1 ^ "_ptr[j]" ^
@@ -361,7 +389,7 @@ let rec binops_mlircl mlircl_string_list outtype=
               let forl = ("  const int64_t length = input1_sizes[0];\n  for (const auto l : c10::irange(length)) {\n" ^
                           "    for (const auto j : c10::irange(length)) {\n" ^ op_str ^
                           "    }\n  }\n  return " ^ List.nth abcd_list (n-1)  ^ ";\n}\n") in
-              headers ^ scalar_t ^ (setup_var n) ^ forl
+              headers ^ scalar_t ^ (setup_var n) ^ forl*)
             else if outtype = "_" then
               "\nreturn input1;\n}\n"
             else if outtype = "_out" then
@@ -690,7 +718,7 @@ let compile_ast env effect_info output_chan ast opt_pytorch opt_tosa opt_torch_m
        td ^  process_defs_to_tosa outtype defs
   in
 
-  let outtype = "td" in
+  (*let outtype = "td" in
   let tosa_tablegen = process_defs_to_tosa outtype ast.defs in
 
   let outtype = "ops" in
@@ -700,7 +728,7 @@ let compile_ast env effect_info output_chan ast opt_pytorch opt_tosa opt_torch_m
   let tosa_canonicalization = process_defs_to_tosa outtype ast.defs in
 
   let outtype = "test_param" in
-  let tosa_test = (process_defs_to_tosa outtype ast.defs) in
+  let tosa_test = (process_defs_to_tosa outtype ast.defs) in*)
 
   let outtype = "binops" in
   let tosa_binops = (process_defs_to_tosa outtype ast.defs) in
@@ -708,7 +736,7 @@ let compile_ast env effect_info output_chan ast opt_pytorch opt_tosa opt_torch_m
   let outtype = "nfunctions" in
   let tosa_nfunctions = (process_defs_to_tosa outtype ast.defs) in
 
-  let outtype = "rtypes" in
+  (*let outtype = "rtypes" in
   let tosa_rtypes = (process_defs_to_tosa outtype ast.defs) in
 
   let outtype = "shape_lib_gen" in
@@ -721,21 +749,21 @@ let compile_ast env effect_info output_chan ast opt_pytorch opt_tosa opt_torch_m
   let tosa_torch = (process_defs_to_tosa outtype ast.defs) in
 
   let outtype = "uncategorized" in
-  let tosa_uncategorized = (process_defs_to_tosa outtype ast.defs) in
+  let tosa_uncategorized = (process_defs_to_tosa outtype ast.defs) in*)
 
-  let fname0 = "generated_definitions/mlir/llvm/TosaOps.td" in
+  (*let fname0 = "generated_definitions/mlir/llvm/TosaOps.td" in
   let fname1 = "generated_definitions/mlir/llvm/TosaOps.cpp" in
   let fname2 = "generated_definitions/mlir/llvm/TosaCanonicalizations.cpp" in
-  let fname3 = "generated_definitions/mlir/llvm/test_tosa_ops.mlir" in
+  let fname3 = "generated_definitions/mlir/llvm/test_tosa_ops.mlir" in*)
   let fname4 = "generated_definitions/mlir/pytorch/BinaryOps.cpp" in
   let fname5 = "generated_definitions/mlir/pytorch/native_functions.yaml" in
-  let fname6 = "generated_definitions/mlir/torch-mlir/RefineTypes.cpp" in
+  (*let fname6 = "generated_definitions/mlir/torch-mlir/RefineTypes.cpp" in
   let fname7 = "generated_definitions/mlir/torch-mlir/shape_lib_gen.py" in
   let fname8 = "generated_definitions/mlir/torch-mlir/torch_ods_gen.py" in
   let fname9 = "generated_definitions/mlir/torch-mlir/TorchToTosa.cpp" in
-  let fname10 = "generated_definitions/mlir/torch-mlir/Uncategorized.cpp" in
+  let fname10 = "generated_definitions/mlir/torch-mlir/Uncategorized.cpp" in*)
   
-  let output_chan = open_out fname0 in
+  (*let output_chan = open_out fname0 in
   Printf.fprintf output_chan "%s" tosa_tablegen;
   close_out output_chan;
 
@@ -749,7 +777,7 @@ let compile_ast env effect_info output_chan ast opt_pytorch opt_tosa opt_torch_m
 
   let output_chan = open_out fname3 in
   Printf.fprintf output_chan "%s" tosa_test;
-  close_out output_chan;
+  close_out output_chan;*)
 
   let output_chan = open_out fname4 in
   Printf.fprintf output_chan "%s" tosa_binops;
@@ -759,7 +787,7 @@ let compile_ast env effect_info output_chan ast opt_pytorch opt_tosa opt_torch_m
   Printf.fprintf output_chan "%s" tosa_nfunctions;
   close_out output_chan;
 
-  let output_chan = open_out fname6 in
+  (*let output_chan = open_out fname6 in
   Printf.fprintf output_chan "%s" tosa_rtypes;
   close_out output_chan;
 
@@ -777,7 +805,7 @@ let compile_ast env effect_info output_chan ast opt_pytorch opt_tosa opt_torch_m
 
   let output_chan = open_out fname10 in
   Printf.fprintf output_chan "%s" tosa_uncategorized;
-  close_out output_chan;
+  close_out output_chan;*)
 
   print_endline(tosa_nfunctions);
   print_endline(tosa_binops)
