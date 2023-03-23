@@ -101,8 +101,8 @@ let str_contains s1 s2 =
         try ignore (Str.search_forward re s1 0); true
         with Not_found -> false
 
-let rec tensorops_mlircl mlircl_string_list outtype=
-  match mlircl_string_list with
+let rec tensorops_rgenircl rgenircl_string_list outtype=
+  match rgenircl_string_list with
   | [] -> ""
   | h :: t ->
     let rec find_return_type str_list =
@@ -121,14 +121,14 @@ let rec tensorops_mlircl mlircl_string_list outtype=
     in
     if str_contains h "Sail_"  then
   
-      let rec tensorops_mlircli str_list instr_name outtype  =
+      let rec tensorops_rgenircli str_list instr_name outtype  =
         match str_list with
         | [] -> ""
         | h :: t ->
           if str_contains h "summary" then
-            "" ^ tensorops_mlircli t instr_name outtype
+            "" ^ tensorops_rgenircli t instr_name outtype
           else if str_contains h "description" then
-            "" ^ tensorops_mlircli t instr_name outtype
+            "" ^ tensorops_rgenircli t instr_name outtype
           else if str_contains h "input1" then
             let rec further_inputs str_list num =
               match str_list with
@@ -272,21 +272,21 @@ let rec tensorops_mlircl mlircl_string_list outtype=
             else
               ""
           else
-            tensorops_mlircli t instr_name outtype
+            tensorops_rgenircli t instr_name outtype
       in
 
       let instr_name = List.nth (String.split_on_char '"' h) 1 in
       if outtype = "norm" then 
-        (find_return_type t) ^ " " ^ instr_name ^ "(" ^ tensorops_mlircli t instr_name outtype 
+        (find_return_type t) ^ " " ^ instr_name ^ "(" ^ tensorops_rgenircli t instr_name outtype 
       else if outtype = "_" || outtype = "_out" then 
-        (find_return_type t) ^ "& " ^ instr_name ^ outtype ^ "(" ^ tensorops_mlircli t instr_name outtype 
+        (find_return_type t) ^ "& " ^ instr_name ^ outtype ^ "(" ^ tensorops_rgenircli t instr_name outtype 
       else
-        tensorops_mlircli t instr_name outtype
+        tensorops_rgenircli t instr_name outtype
 
     else
-      "" ^ tensorops_mlircl t outtype
+      "" ^ tensorops_rgenircl t outtype
 
-let rec nfunctions_mlircl mlircl_string_list outtype=
+let rec nfunctions_rgenircl rgenircl_string_list outtype=
   let rec find_instr_name str_list =
     match str_list with
     | [] -> ""
@@ -297,10 +297,10 @@ let rec nfunctions_mlircl mlircl_string_list outtype=
       else
         "" ^ find_instr_name t
   in
-  let instr_name = ref (find_instr_name mlircl_string_list) in
+  let instr_name = ref (find_instr_name rgenircl_string_list) in
   let whitespace_regex = Str.regexp " " in
 
-  match mlircl_string_list with
+  match rgenircl_string_list with
   | [] -> ""
   | h :: t ->
     let rec find_return_type str_list =
@@ -316,14 +316,14 @@ let rec nfunctions_mlircl mlircl_string_list outtype=
     in
 
     if str_contains h "Sail_"  then
-      let rec nfunctions_inner_mlircl slist outtype instr_name =
+      let rec nfunctions_inner_rgenircl slist outtype instr_name =
         match slist with
         | [] -> ""
         | h :: t ->
         if str_contains h "summary" then
-          "" ^ nfunctions_inner_mlircl t outtype instr_name
+          "" ^ nfunctions_inner_rgenircl t outtype instr_name
         else if str_contains h "description" then
-          "" ^ nfunctions_inner_mlircl t outtype instr_name
+          "" ^ nfunctions_inner_rgenircl t outtype instr_name
         else if str_contains (List.hd (String.split_on_char ':' h)) "input1" then
 
           let rec further_inputs str_list num =
@@ -344,66 +344,66 @@ let rec nfunctions_mlircl mlircl_string_list outtype=
           let in_type = Str.replace_first whitespace_regex "" (List.hd (String.split_on_char '(' (List.nth in_type 1))) in
           let further_input_string, _ = further_inputs t 2 in
           if outtype = "norm" then 
-            in_type ^ " self" ^ further_input_string ^ ", *, Scalar alpha=1) -> " ^ nfunctions_inner_mlircl t outtype instr_name
+            in_type ^ " self" ^ further_input_string ^ ", *, Scalar alpha=1) -> " ^ nfunctions_inner_rgenircl t outtype instr_name
           else if outtype = "_" then 
-            in_type ^ "(a!) self" ^ further_input_string ^ ", *, Scalar alpha=1) -> " ^ nfunctions_inner_mlircl t outtype instr_name
+            in_type ^ "(a!) self" ^ further_input_string ^ ", *, Scalar alpha=1) -> " ^ nfunctions_inner_rgenircl t outtype instr_name
           else if outtype = "_out" then 
-            in_type ^ " self" ^ further_input_string ^ ", *, Scalar alpha=1," ^ find_return_type t ^ "(a!) out) -> " ^ nfunctions_inner_mlircl t outtype instr_name 
+            in_type ^ " self" ^ further_input_string ^ ", *, Scalar alpha=1," ^ find_return_type t ^ "(a!) out) -> " ^ nfunctions_inner_rgenircl t outtype instr_name 
           else
-           "" ^ nfunctions_inner_mlircl t outtype instr_name
+           "" ^ nfunctions_inner_rgenircl t outtype instr_name
         else if str_contains h "output" then
           let out_type = String.split_on_char ':' h in
           let out_type = Str.replace_first whitespace_regex "" (List.hd(String.split_on_char '(' (List.nth out_type 1))) in
           if outtype = "norm" then
-            out_type ^ "\n  variants: function\n  dispatch:\n    CPU: " ^ !instr_name ^  nfunctions_inner_mlircl t outtype instr_name
+            out_type ^ "\n  variants: function\n  dispatch:\n    CPU: " ^ !instr_name ^  nfunctions_inner_rgenircl t outtype instr_name
           else if outtype = "_" then
-            out_type ^ "(a!)\n  variants: method\n  dispatch:\n    CPU: " ^ !instr_name ^ outtype ^ nfunctions_inner_mlircl t outtype instr_name
+            out_type ^ "(a!)\n  variants: method\n  dispatch:\n    CPU: " ^ !instr_name ^ outtype ^ nfunctions_inner_rgenircl t outtype instr_name
           else if outtype = "_out" then
-            out_type ^ "(a!)\n  variants: function\n  dispatch:\n    CPU: " ^ !instr_name ^ outtype ^ nfunctions_inner_mlircl t outtype instr_name
+            out_type ^ "(a!)\n  variants: function\n  dispatch:\n    CPU: " ^ !instr_name ^ outtype ^ nfunctions_inner_rgenircl t outtype instr_name
           else
-          "" ^ nfunctions_inner_mlircl t outtype instr_name
+          "" ^ nfunctions_inner_rgenircl t outtype instr_name
         else
-          "" ^ nfunctions_inner_mlircl t outtype instr_name
+          "" ^ nfunctions_inner_rgenircl t outtype instr_name
       in
 
       if outtype = "norm" then 
-        "- func: " ^ !instr_name ^ "(" ^ nfunctions_inner_mlircl t outtype instr_name
+        "- func: " ^ !instr_name ^ "(" ^ nfunctions_inner_rgenircl t outtype instr_name
       else if outtype = "_" then 
-        "- func: " ^ !instr_name ^ outtype ^ "(" ^ nfunctions_inner_mlircl t outtype instr_name
+        "- func: " ^ !instr_name ^ outtype ^ "(" ^ nfunctions_inner_rgenircl t outtype instr_name
       else if outtype = "_out" then 
-        "- func: " ^ !instr_name ^ ".out(" ^ nfunctions_inner_mlircl t outtype instr_name
+        "- func: " ^ !instr_name ^ ".out(" ^ nfunctions_inner_rgenircl t outtype instr_name
       else
-        "" ^ nfunctions_inner_mlircl t outtype instr_name
+        "" ^ nfunctions_inner_rgenircl t outtype instr_name
     else
-      "" ^ nfunctions_mlircl t outtype
+      "" ^ nfunctions_rgenircl t outtype
 
 let sail_to_tosa clause outtype =
-  let mlircl_string = Pretty_print_sail.to_string(Pretty_print_sail.doc_mlircl clause) in
-  let mlircl_string_list = String.split_on_char '\n' mlircl_string in
+  let rgenircl_string = Pretty_print_sail.to_string(Pretty_print_sail.doc_rgenircl clause) in
+  let rgenircl_string_list = String.split_on_char '\n' rgenircl_string in
   if outtype = "tensorops" then
-    (tensorops_mlircl mlircl_string_list "norm" ^ "\n" ^
-    tensorops_mlircl mlircl_string_list "_" ^ "\n" ^
-    tensorops_mlircl mlircl_string_list "_out" ^ "\n")
+    (tensorops_rgenircl rgenircl_string_list "norm" ^ "\n" ^
+    tensorops_rgenircl rgenircl_string_list "_" ^ "\n" ^
+    tensorops_rgenircl rgenircl_string_list "_out" ^ "\n")
   else if outtype = "nfunctions" then
-    (nfunctions_mlircl mlircl_string_list "norm" ^ "\n" ^
-     nfunctions_mlircl mlircl_string_list "_" ^ "\n" ^
-     nfunctions_mlircl mlircl_string_list "_out" ^ "\n")
+    (nfunctions_rgenircl rgenircl_string_list "norm" ^ "\n" ^
+     nfunctions_rgenircl rgenircl_string_list "_" ^ "\n" ^
+     nfunctions_rgenircl rgenircl_string_list "_out" ^ "\n")
   else
     ""
-let rec tosa_mlircl mlircls outtype  =
-  match mlircls with
+let rec tosa_rgenircl rgenircls outtype  =
+  match rgenircls with
   | [] -> ""
-  | clause :: clauses -> sail_to_tosa clause outtype ^ tosa_mlircl clauses outtype
+  | clause :: clauses -> sail_to_tosa clause outtype ^ tosa_rgenircl clauses outtype
 
-let rec tosa_mlirdef (MLIRD_aux (MLIRD_cl (id, mlircls), _)) outtype =
-  match mlircls with
-  | [] -> failwith "No mlir clause"
-  | _ -> tosa_mlircl mlircls outtype
+let rec tosa_rgenirdef (RGENIRD_aux (RGENIRD_cl (id, rgenircls), _)) outtype =
+  match rgenircls with
+  | [] -> failwith "No rgenir clause"
+  | _ -> tosa_rgenircl rgenircls outtype
 
-let compile_ast env effect_info output_chan ast opt_pytorch opt_tosa opt_torch_mlir =
+let compile_ast env effect_info output_chan ast opt_pytorch opt_tosa opt_torch_rgenir =
   let td_def def outtype = 
     match def with
-    | DEF_mlirdef mlirdef -> tosa_mlirdef mlirdef outtype
+    | DEF_rgenirdef rgenirdef -> tosa_rgenirdef rgenirdef outtype
     | _ -> ""
   in
 
@@ -420,8 +420,8 @@ let compile_ast env effect_info output_chan ast opt_pytorch opt_tosa opt_torch_m
   let outtype = "nfunctions" in
   let tosa_nfunctions = (process_defs_to_tosa outtype ast.defs) in
 
-  let fname4 = "generated_definitions/mlir/pytorch/ExternalOps.cpp" in
-  let fname5 = "generated_definitions/mlir/pytorch/native_functions.yaml" in
+  let fname4 = "generated_definitions/pytorch/ExternalOps.cpp" in
+  let fname5 = "generated_definitions/pytorch/native_functions.yaml" in
 
   let output_chan = open_out fname4 in
   Printf.fprintf output_chan "%s" tosa_tensorops;

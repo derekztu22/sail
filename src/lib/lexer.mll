@@ -205,7 +205,7 @@ let kw_table =
      ("termination_measure",     (fun _ -> TerminationMeasure));
      ("forwards",                (fun _ -> Forwards));
      ("backwards",               (fun _ -> Backwards));
-     ("mlir",			 (fun _ -> Mlir));
+     ("rgenir",			 (fun _ -> Rgenir));
      ("internal_plet",           (fun _ -> InternalPLet));
      ("internal_return",         (fun _ -> InternalReturn));
    ]

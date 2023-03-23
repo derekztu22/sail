@@ -659,33 +659,33 @@ let doc_mapcl (MCL_aux (cl, _)) =
      let right = doc_exp exp in
      separate space [left; string "<-"; right]
 
-let doc_mlirlit (MLIRLit_aux (cl, _)) =
+let doc_rgenirlit (RGENIRLit_aux (cl, _)) =
   utf8string (match cl with
-  | MLIRLit_string (s) -> "\"" ^ String.escaped s ^ "\"")
+  | RGENIRLit_string (s) -> "\"" ^ String.escaped s ^ "\"")
 
-let doc_mliratt (MLIRatt_aux (cl, _)) =
+let doc_rgeniratt (RGENIRatt_aux (cl, _)) =
   match cl with
-  | MLIRatt_id (id) -> doc_id id
-  | MLIRatt_ctor (id, id1, mlirlit) -> doc_id id ^^ string "<" ^^ doc_id id1 ^^ string ",[" ^^ doc_mlirlit mlirlit ^^ string "]>"
+  | RGENIRatt_id (id) -> doc_id id
+  | RGENIRatt_ctor (id, id1, rgenirlit) -> doc_id id ^^ string "<" ^^ doc_id id1 ^^ string ",[" ^^ doc_rgenirlit rgenirlit ^^ string "]>"
 
-let doc_mlirpat (MLIRP_aux (cl, _)) =
+let doc_rgenirpat (RGENIRP_aux (cl, _)) =
   match cl with
-  | MLIRP_var (mlirlit, mliratts) ->
-     let left = doc_mlirlit mlirlit in
-     string "<" ^^ left ^^ string ", ["  ^^ separate_map (comma ^^ space) doc_mliratt mliratts ^^ string "]>"
+  | RGENIRP_var (rgenirlit, rgeniratts) ->
+     let left = doc_rgenirlit rgenirlit in
+     string "<" ^^ left ^^ string ", ["  ^^ separate_map (comma ^^ space) doc_rgeniratt rgeniratts ^^ string "]>"
 
-let doc_mlir_pexp (MLIRPat_aux (cl, _)) =
+let doc_rgenir_pexp (RGENIRPat_aux (cl, _)) =
   match cl with
-  | MLIRPat_exp (mlirpat, exp) ->
-     let left = doc_mlirpat mlirpat in
+  | RGENIRPat_exp (rgenirpat, exp) ->
+     let left = doc_rgenirpat rgenirpat in
      let right = doc_exp exp in
      left ^^ space ^^ right
 
-let doc_mlircl (MLIRCL_aux (cl, _)) =
+let doc_rgenircl (RGENIRCL_aux (cl, _)) =
   match cl with
-  | MLIRCL_Mlircl (id, mlir_pexp) ->
+  | RGENIRCL_Rgenircl (id, rgenir_pexp) ->
      let left = doc_id id in
-     let right = doc_mlir_pexp mlir_pexp in
+     let right = doc_rgenir_pexp rgenir_pexp in
      left ^^ right
 
 let doc_mapdef (MD_aux (MD_mapping (id, _, mapcls), _)) =
@@ -696,13 +696,13 @@ let doc_mapdef (MD_aux (MD_mapping (id, _, mapcls), _)) =
      let clauses = separate_map sep doc_mapcl mapcls in
      string "mapping" ^^ space ^^ doc_id id ^^ space ^^ string "=" ^^ space ^^ (surround 2 0 lbrace clauses rbrace)
 
-let doc_mlirdef (MLIRD_aux (MLIRD_cl (id, mlircls), _)) =
-  match mlircls with
+let doc_rgenirdef (RGENIRD_aux (RGENIRD_cl (id, rgenircls), _)) =
+  match rgenircls with
   | [] -> failwith "Empty mapping"
   | _ ->
      let sep = string "," ^^ hardline in
-     let clauses = separate_map sep doc_mlircl mlircls in
-     string "mlir clause" ^^ space ^^ doc_id id ^^ space ^^ string "=" ^^ space ^^ (surround 2 0 lbrace clauses rbrace)
+     let clauses = separate_map sep doc_rgenircl rgenircls in
+     string "rgenir clause" ^^ space ^^ doc_id id ^^ space ^^ string "=" ^^ space ^^ (surround 2 0 lbrace clauses rbrace)
 
 let doc_dec (DEC_aux (reg,_)) =
   match reg with
@@ -803,8 +803,8 @@ let doc_scattered (SD_aux (sd_aux, _)) =
      string "scattered" ^^ space ^^ string "union" ^^ space ^^ doc_id id ^^ doc_param_quants quants
   | SD_mapcl (id, mapcl) ->
      separate space [string "mapping clause"; doc_id id; equals; doc_mapcl mapcl]
-  | SD_mlircl (id, mlircl) ->
-     separate space [string "mlir clause"; doc_id id; equals; doc_mlircl mlircl]
+  | SD_rgenircl (id, rgenircl) ->
+     separate space [string "rgenir clause"; doc_id id; equals; doc_rgenircl rgenircl]
   | SD_mapping (id, Typ_annot_opt_aux (Typ_annot_opt_none, _)) ->
      separate space [string "scattered mapping"; doc_id id]
   | SD_mapping (id, Typ_annot_opt_aux (Typ_annot_opt_some (typq, typ), _)) ->
@@ -822,7 +822,7 @@ let rec doc_def_no_hardline ?comment:(comment=false) = function
   | DEF_type t_def -> doc_typdef t_def
   | DEF_fundef f_def -> doc_fundef f_def
   | DEF_mapdef m_def -> doc_mapdef m_def
-  | DEF_mlirdef mlir_def -> doc_mlirdef mlir_def
+  | DEF_rgenirdef rgenir_def -> doc_rgenirdef rgenir_def
   | DEF_outcome (OV_aux (OV_outcome (id, typschm, args), _), defs) ->
      string "outcome" ^^ space ^^ doc_id id ^^ space ^^ colon ^^ space ^^ doc_typschm typschm
      ^^ break 1 ^^ (string "with" ^//^ separate_map (comma ^^ break 1) doc_kopt_no_parens args)

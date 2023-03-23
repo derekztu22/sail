@@ -268,7 +268,7 @@ cdef :: 'CDEF_' ::=
 
   %| function id ( id0 , ... , idn ) {
   %    instr0 ; ... ; instrm
-  %  } :: :: mlirdef
+  %  } :: :: rgenirdef
 
 % Directive preserved from Sail
   | $ string1 string2 :: :: pragma

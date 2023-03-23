@@ -332,36 +332,36 @@ and letbind =
 
 (*TODO*)
 
-type mlirlit_aux =
-  MLIRLit_string of string
+type rgenirlit_aux =
+  RGENIRLit_string of string
 
-type mlirlit =
-  MLIRLit_aux of ( mlirlit_aux) * l
+type rgenirlit =
+  RGENIRLit_aux of ( rgenirlit_aux) * l
 
-type mliratt_aux =
-    MLIRatt_id of id
-  | MLIRatt_ctor of id * id * mlirlit
+type rgeniratt_aux =
+    RGENIRatt_id of id
+  | RGENIRatt_ctor of id * id * rgenirlit
 
-type mliratt =
-  MLIRatt_aux of ( mliratt_aux) * l
+type rgeniratt =
+  RGENIRatt_aux of ( rgeniratt_aux) * l
 
-type mlirpat_aux =
-  MLIRP_var of mlirlit * ( mliratt) list
+type rgenirpat_aux =
+  RGENIRP_var of rgenirlit * ( rgeniratt) list
 
-type mlirpat =
-  MLIRP_aux of mlirpat_aux * l
+type rgenirpat =
+  RGENIRP_aux of rgenirpat_aux * l
 
-type mlirexp_aux =
-  MLIRE of id
+type rgenirexp_aux =
+  RGENIRE of id
 
-type mlirexp =
-  MLIRE_aux of mlirexp_aux * l
+type rgenirexp =
+  RGENIRE_aux of rgenirexp_aux * l
 
-type mlirpexp_aux =
-  MLIRPat_exp of mlirpat * exp
+type rgenirpexp_aux =
+  RGENIRPat_exp of rgenirpat * exp
 
-type mlir_pexp =
-  MLIRPat_aux of mlirpexp_aux * l
+type rgenir_pexp =
+  RGENIRPat_aux of rgenirpexp_aux * l
 
 (* END TODO *)
 type 
@@ -402,8 +402,8 @@ type_union_aux =  (* Type union constructors *)
  | Tu_ty_anon_rec of (atyp * id) list * id
 
 type
-mlircl_aux =  (* mlir constructors *)
-  MLIRCL_Mlircl of id * mlir_pexp
+rgenircl_aux =  (* rgenir constructors *)
+  RGENIRCL_Rgenircl of id * rgenir_pexp
 
 type 
 tannot_opt = 
@@ -429,8 +429,8 @@ type_union =
    Tu_aux of type_union_aux * l
 
 type
-mlircl =
-   MLIRCL_aux of mlircl_aux * l
+rgenircl =
+   RGENIRCL_aux of rgenircl_aux * l
 
 type subst_aux =  (* instantiation substitution *)
  | IS_typ of kid * atyp (* instantiate a type variable with a type *)
@@ -489,11 +489,11 @@ type mapdef_aux =  (* mapping definition (bidirectional pattern-match function) 
 type mapdef =
  | MD_aux of ( mapdef_aux) * l
 
-type mlirdef_aux =  (* mapping definition (bidirectional pattern-match function) *)
- | MLIRD_cl of id * ( mlircl) list
+type rgenirdef_aux =  (* mapping definition (bidirectional pattern-match function) *)
+ | RGENIRD_cl of id * ( rgenircl) list
 
-type mlirdef =
- | MLIRD_aux of ( mlirdef_aux) * l
+type rgenirdef =
+ | RGENIRD_aux of ( rgenirdef_aux) * l
 
 type outcome_spec_aux =  (* outcome declaration *)
  | OV_outcome of id * typschm * kinded_id list
@@ -529,7 +529,7 @@ scattered_def_aux =  (* Function and type union definitions that can be spread a
  | SD_funcl of funcl (* scattered function definition clause *)
  | SD_variant of id * typquant (* scattered union definition header *)
  | SD_unioncl of id * type_union (* scattered union definition member *)
- | SD_mlircl of id * mlircl (* scattered nlir definition member *)
+ | SD_rgenircl of id * rgenircl (* scattered nlir definition member *)
  | SD_mapping of id * tannot_opt
  | SD_mapcl of id * mapcl
  | SD_end of id (* scattered definition end *)
@@ -577,7 +577,7 @@ def =  (* Top-level definition *)
  | DEF_fundef of fundef (* function definition *)
  | DEF_mapdef of mapdef (* mapping definition *)
  | DEF_impl of funcl (* impl definition *)
- | DEF_mlirdef of mlirdef (* impl definition *)
+ | DEF_rgenirdef of rgenirdef (* impl definition *)
  | DEF_val of letbind (* value definition *)
  | DEF_overload of id * id list (* operator overload specifications *)
  | DEF_fixity of prec * Big_int.num * id (* fixity declaration *)

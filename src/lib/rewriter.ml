@@ -274,14 +274,14 @@ let rewrite_scattered rewriters (SD_aux (sd, (l, annot))) =
   let sd =  match sd with
     | SD_funcl funcl -> SD_funcl (rewrite_funcl rewriters funcl)
     | SD_mapcl (id, mapcl) -> SD_mapcl (id, rewrite_mapcl rewriters mapcl)
-    | SD_variant _ | SD_unioncl _ | SD_mapping _ | SD_function _ | SD_mlircl _ | SD_end _ -> sd
+    | SD_variant _ | SD_unioncl _ | SD_mapping _ | SD_function _ | SD_rgenircl _ | SD_end _ -> sd
   in
   SD_aux (sd, (l, annot))
   
 let rec rewrite_def rewriters d = match d with
   | DEF_reg_dec (DEC_aux (DEC_reg (typ, id, Some exp), annot)) ->
      DEF_reg_dec (DEC_aux (DEC_reg (typ, id, Some (rewriters.rewrite_exp rewriters exp)), annot))
-  | DEF_type _ | DEF_mlirdef _ | DEF_mapdef _ | DEF_spec _ | DEF_default _ | DEF_reg_dec _ | DEF_overload _ | DEF_fixity _ | DEF_instantiation _ -> d
+  | DEF_type _ | DEF_rgenirdef _ | DEF_mapdef _ | DEF_spec _ | DEF_default _ | DEF_reg_dec _ | DEF_overload _ | DEF_fixity _ | DEF_instantiation _ -> d
   | DEF_fundef fdef -> DEF_fundef (rewriters.rewrite_fun rewriters fdef)
   | DEF_impl funcl -> DEF_impl (rewrite_funcl rewriters funcl)
   | DEF_outcome (outcome_spec, defs) -> DEF_outcome (outcome_spec, List.map (rewrite_def rewriters) defs)

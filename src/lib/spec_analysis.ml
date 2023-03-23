@@ -514,7 +514,7 @@ let fv_of_def consider_var consider_scatter_as_one all_defs = function
   | DEF_type tdef -> fv_of_type_def consider_var tdef
   | DEF_fundef fdef -> fv_of_fun consider_var fdef
   | DEF_mapdef mdef -> mt,mt (* fv_of_map consider_var mdef *)
-  | DEF_mlirdef mlirdef -> mt,mt (* fv_of_map consider_var mdef *)
+  | DEF_rgenirdef rgenirdef -> mt,mt (* fv_of_map consider_var mdef *)
   | DEF_val lebind -> ((fun (b,u,_) -> (b,u)) (fv_of_let consider_var mt mt mt lebind))
   | DEF_spec vspec -> fv_of_vspec consider_var vspec
   | DEF_fixity _ -> mt,mt
