@@ -105,9 +105,9 @@ let mk_pat p n m = P_aux (p, loc n m)
 let mk_fpat fp n m = FP_aux (fp, loc n m)
 let mk_pexp p n m = Pat_aux (p, loc n m)
 let mk_exp e n m = E_aux (e, loc n m)
-let mk_mlirpat p n m = MLIRP_aux (p, loc n m)
-let mk_mlirpexp p n m = MLIRPat_aux (p, loc n m)
-let mk_mlirexp e n m = MLIRE_aux (e, loc n m)
+let mk_rgenirpat p n m = RGENIRP_aux (p, loc n m)
+let mk_rgenirpexp p n m = RGENIRPat_aux (p, loc n m)
+let mk_rgenirexp e n m = RGENIRE_aux (e, loc n m)
 let mk_measure meas n m = Measure_aux (meas, loc n m)
 let mk_lit l n m = L_aux (l, loc n m)
 let mk_lit_exp l n m = mk_exp (E_lit (mk_lit l n m)) n m
@@ -127,7 +127,7 @@ let mk_ir r n m = BF_aux (r, loc n m)
 
 let mk_funcl f n m = FCL_aux (f, loc n m)
 let mk_fun fn n m = FD_aux (fn, loc n m)
-let mk_mlircl f n m = MLIRCL_aux (f, loc n m)
+let mk_rgenircl f n m = RGENIRCL_aux (f, loc n m)
 let mk_td t n m = TD_aux (t, loc n m)
 let mk_vs v n m = VS_aux (v, loc n m)
 let mk_reg_dec d n m = DEC_aux (d, loc n m)
@@ -137,8 +137,8 @@ let mk_subst ev n m = IS_aux (ev, loc n m)
 
 let mk_mpexp mpexp n m = MPat_aux (mpexp, loc n m)
 let mk_mpat mpat n m = MP_aux (mpat, loc n m)
-let mk_mliratt mliratt n m = MLIRatt_aux (mliratt, loc n m)
-let mk_mlirlit mlirlit n m = MLIRLit_aux (mlirlit, loc n m)
+let mk_rgeniratt rgeniratt n m = RGENIRatt_aux (rgeniratt, loc n m)
+let mk_rgenirlit rgenirlit n m = RGENIRLit_aux (rgenirlit, loc n m)
 let mk_bidir_mapcl mpexp1 mpexp2 n m = MCL_aux (MCL_bidir (mpexp1, mpexp2), loc n m)
 let mk_forwards_mapcl_deprecated mpexp exp n m = MCL_aux (MCL_forwards_deprecated (mpexp, exp), loc n m)
 let mk_forwards_mapcl pexp n m = MCL_aux (MCL_forwards pexp, loc n m)
@@ -158,7 +158,7 @@ let doc_reg_dec doc (DEC_aux (d, l)) = DEC_aux (d, doc_loc doc l)
 let doc_mapcl doc (MCL_aux (d, l)) = MCL_aux (d, doc_loc doc l)
 let doc_map doc (MD_aux (m, l)) = MD_aux (m, doc_loc doc l)
 let doc_tu doc (Tu_aux (tu, l)) = Tu_aux (tu, doc_loc doc l)
-let doc_mlir doc (MLIRCL_aux (mlircl, l)) = MLIRCL_aux (mlircl, doc_loc doc l)
+let doc_rgenir doc (RGENIRCL_aux (rgenircl, l)) = RGENIRCL_aux (rgenircl, doc_loc doc l)
 let doc_id doc (Id_aux (id, l)) = Id_aux (id, doc_loc doc l)
 
 let doc_sd doc (SD_aux (sd, l)) =
@@ -166,7 +166,7 @@ let doc_sd doc (SD_aux (sd, l)) =
   | SD_funcl fcl -> SD_aux (SD_funcl (doc_funcl doc fcl), l)
   | SD_unioncl (id, tu) -> SD_aux (SD_unioncl (id, doc_tu doc tu), l)
   | SD_mapcl (id, mcl) -> SD_aux (SD_mapcl (id, doc_mapcl doc mcl), l)
-  | SD_mlircl (id, mlircl) -> SD_aux (SD_mlircl (id, doc_mlir doc mlircl), l)
+  | SD_rgenircl (id, rgenircl) -> SD_aux (SD_rgenircl (id, doc_rgenir doc rgenircl), l)
 
   | SD_function _
   | SD_variant _
@@ -254,7 +254,7 @@ let set_syntax_deprecated l =
 %token Repeat Until While Do Mutual Var Ref Configuration TerminationMeasure Instantiation Impl Private
 %token InternalPLet InternalReturn InternalAssume
 %token Forwards Backwards
-%token Mlir
+%token Rgenir
 
 %nonassoc Then
 %nonassoc Else
@@ -930,32 +930,32 @@ funcl_annotation:
   | doc = Doc
     { (fun funcl -> FCL_aux (FCL_doc (doc, funcl), loc $startpos(doc) $endpos(doc))) }
 
-mlirlit:
+rgenirlit:
   | String
-   {mk_mlirlit(MLIRLit_string $1) $startpos $endpos}
+   {mk_rgenirlit(RGENIRLit_string $1) $startpos $endpos}
 
-mlirpat:
-  | Lt mlirlit Comma Lsquare mliratt_list Rsquare Gt
-    {mk_mlirpat (MLIRP_var($2, $5)) $startpos $endpos}
+rgenirpat:
+  | Lt rgenirlit Comma Lsquare rgeniratt_list Rsquare Gt
+    {mk_rgenirpat (RGENIRP_var($2, $5)) $startpos $endpos}
 
-mlir_patexp:
-  | mlirpat exp
-    {mk_mlirpexp(MLIRPat_exp($1, $2)) $startpos $endpos }
+rgenir_patexp:
+  | rgenirpat exp
+    {mk_rgenirpexp(RGENIRPat_exp($1, $2)) $startpos $endpos }
 
-mlircl:
-  | id mlir_patexp
-    { mk_mlircl (MLIRCL_Mlircl($1, $2)) $startpos $endpos }
+rgenircl:
+  | id rgenir_patexp
+    { mk_rgenircl (RGENIRCL_Rgenircl($1, $2)) $startpos $endpos }
 
-mliratt:
+rgeniratt:
   | id
-    { mk_mliratt(MLIRatt_id $1) $startpos $endpos }
-  | id Lt id Comma Lsquare mlirlit Rsquare Gt
-    { mk_mliratt(MLIRatt_ctor ($1, $3, $6)) $startpos $endpos }
+    { mk_rgeniratt(RGENIRatt_id $1) $startpos $endpos }
+  | id Lt id Comma Lsquare rgenirlit Rsquare Gt
+    { mk_rgeniratt(RGENIRatt_ctor ($1, $3, $6)) $startpos $endpos }
 
-mliratt_list:
-  | mliratt Comma?
+rgeniratt_list:
+  | rgeniratt Comma?
     { [$1] }
-  | mliratt Comma mliratt_list
+  | rgeniratt Comma rgeniratt_list
     { $1 :: $3 }
 
 funcl_patexp:
@@ -1335,9 +1335,9 @@ scattered_def:
     { mk_sd (SD_mapping ($3, mk_tannotn)) $startpos $endpos }
   | Scattered Mapping id Colon funcl_typ
     { mk_sd (SD_mapping ($3, $5)) $startpos $endpos }
-  | Scattered Mlir id typaram
+  | Scattered Rgenir id typaram
     { mk_sd (SD_variant($3, $4)) $startpos $endpos }
-  | Scattered Mlir id
+  | Scattered Rgenir id
     { mk_sd (SD_variant($3, mk_typqn)) $startpos $endpos }
   | Enum Clause id Eq id
     { mk_sd (SD_enumcl ($3, $5)) $startpos $endpos }
@@ -1347,8 +1347,8 @@ scattered_def:
     { mk_sd (SD_unioncl ($3, $5)) $startpos $endpos }
   | Mapping Clause id Eq mapcl
     { mk_sd (SD_mapcl ($3, $5)) $startpos $endpos }
-  | Mlir Clause id Eq mlircl
-    { mk_sd (SD_mlircl ($3, $5)) $startpos $endpos }
+  | Rgenir Clause id Eq rgenircl
+    { mk_sd (SD_rgenircl ($3, $5)) $startpos $endpos }
   | End id
     { mk_sd (SD_end $2) $startpos $endpos }
 

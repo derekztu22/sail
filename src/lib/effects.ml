@@ -255,7 +255,7 @@ let can_have_direct_side_effect (DEF_aux (aux, _)) =
   | DEF_constraint _ -> false
   | DEF_fundef _ -> true
   | DEF_mapdef _ -> false 
-  | DEF_mlirdef _ -> false
+  | DEF_rgenirdef _ -> false
   | DEF_impl _ -> true
   | DEF_let _ -> true
   | DEF_val _ -> true

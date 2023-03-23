@@ -135,6 +135,9 @@ val get_variant : id -> t -> typquant * type_union list
 val get_variants : t -> (typquant * type_union list) Bindings.t
 val get_scattered_variant_env : id -> t -> t
 val set_scattered_variant_env : variant_env:t -> id -> t -> t
+val get_rgenircl_variant : id -> t -> typ * (unit rgenircl) list
+val get_scattered_rgenircl_variant_env : id -> t -> t
+val set_rgenircl_variant_clause : id -> unit rgenircl  -> t -> t
 val union_constructor_info : id -> t -> (int * int * id * type_union) option
 val is_union_constructor : id -> t -> bool
 val is_singleton_union_constructor : id -> t -> bool

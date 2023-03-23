@@ -673,10 +673,10 @@ mapdef :: 'MD_' ::=
   {{ aux _ annot }} {{ auxparam 'a }}
   | mapping id tannot_opt = { mapcl1 , ... , mapcln } :: :: mapping {{ texlong }}
 
-mlirdef :: 'MLIRD_' ::=
-  {{ com mlirdef definition }}
+rgenirdef :: 'RGENIRD_' ::=
+  {{ com rgenirdef definition }}
   {{ aux _ annot }} {{ auxparam 'a }}
-  | id { mlircl1 , ... , mlircln } :: :: cl
+  | id { rgenircl1 , ... , rgenircln } :: :: cl
 
 letbind :: 'LB_' ::=
   {{ com let binding }}
@@ -745,7 +745,7 @@ scattered_def :: 'SD_' ::=
 
   | internal_unioncl_record id1 id2 typquant { typ1 id1 , ... , typn idn } :: :: internal_unioncl_record
 
-  | mlir clause id =  mlircl :: :: mlircl
+  | rgenir clause id =  rgenircl :: :: rgenircl
 
   | scattered mapping id : tannot_opt :: :: mapping
 
@@ -770,34 +770,34 @@ dec_spec :: 'DEC_' ::=
   | register effect effect' typ id = opt_exp :: :: reg
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% MLIR                                                  %
+% RGENIR                                                  %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-mliratt :: 'MLIRatt_' ::=
+rgeniratt :: 'RGENIRatt_' ::=
   {{ com pattern match }}
   {{ aux _ annot }} {{ auxparam 'a }}
   | id :: :: id
-  | id id1 mlirlit :: :: ctor
+  | id id1 rgenirlit :: :: ctor
 
-mlirlit :: 'MLIRLit_' ::=
+rgenirlit :: 'RGENIRLit_' ::=
   {{ com pattern match }}
   {{ aux _ annot }} {{ auxparam 'a }}
   | string :: :: string
 
-mlirpat :: 'MLIRP_' ::=
+rgenirpat :: 'RGENIRP_' ::=
   {{ com pattern match }}
   {{ aux _ annot }} {{ auxparam 'a }}
-  | mlirlit mliratt0 and .. and mlirattn :: :: var 
+  | rgenirlit rgeniratt0 and .. and rgenirattn :: :: var 
 
-mlir_pexp :: 'MLIRPat_' ::=
+rgenir_pexp :: 'RGENIRPat_' ::=
   {{ com pattern match}}
   {{ aux _ annot }} {{ auxparam 'a }}
-  | mlirpat exp :: :: exp
+  | rgenirpat exp :: :: exp
 
-mlircl :: 'MLIRCL_' ::=
+rgenircl :: 'RGENIRCL_' ::=
   {{ com pattern match }}
   {{ aux _ annot }} {{ auxparam 'a }}
-  | id mlir_pexp :: :: Mlircl 
+  | id rgenir_pexp :: :: Rgenircl 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Top-level definitions                                        %
@@ -824,8 +824,8 @@ def :: 'DEF_' ::=
     {{ com function definition }}
   | mapdef                                             :: :: mapdef
     {{ com mapping definition }}
-  | mlirdef                                            :: :: mlirdef
-    {{ com mlir definition }}
+  | rgenirdef                                            :: :: rgenirdef
+    {{ com rgenir definition }}
   | impl funcl                                         :: :: impl
     {{ com impl definition }}
   | letbind                                            :: :: let

@@ -1827,30 +1827,30 @@ let rec to_ast_mapcl doc attrs ctx (P.MCL_aux (mapcl, l)) =
 
 let to_ast_mapdef ctx (P.MD_aux (md, l) : P.mapdef) : uannot mapdef =
 
-let to_ast_mlirlit ctx (P.MLIRLit_aux(mlirlit, l)) =
-  MLIRLit_aux(
-    (match mlirlit with
-    | P.MLIRLit_string (s) -> MLIRLit_string s
+let to_ast_rgenirlit ctx (P.RGENIRLit_aux(rgenirlit, l)) =
+  RGENIRLit_aux(
+    (match rgenirlit with
+    | P.RGENIRLit_string (s) -> RGENIRLit_string s
     ), (l,()))
 
-let to_ast_mliratt ctx (P.MLIRatt_aux(mliratt, l)) =
-  MLIRatt_aux(
-    (match mliratt with
-    | P.MLIRatt_id (id) -> MLIRatt_id(to_ast_id ctx id)
-    | P.MLIRatt_ctor (id, id1, mlirlit) -> MLIRatt_ctor(to_ast_id ctx id, to_ast_id ctx id1, to_ast_mlirlit ctx mlirlit)
+let to_ast_rgeniratt ctx (P.RGENIRatt_aux(rgeniratt, l)) =
+  RGENIRatt_aux(
+    (match rgeniratt with
+    | P.RGENIRatt_id (id) -> RGENIRatt_id(to_ast_id ctx id)
+    | P.RGENIRatt_ctor (id, id1, rgenirlit) -> RGENIRatt_ctor(to_ast_id ctx id, to_ast_id ctx id1, to_ast_rgenirlit ctx rgenirlit)
     ), (l, ()))
 
-let to_ast_mlirpat ctx (P.MLIRP_aux(mlirpat, l)) =
-  match mlirpat with
-  | P.MLIRP_var (mlirlit, mliratts) -> MLIRP_aux(MLIRP_var(to_ast_mlirlit ctx mlirlit, List.map (to_ast_mliratt ctx) mliratts), (l, ()))
+let to_ast_rgenirpat ctx (P.RGENIRP_aux(rgenirpat, l)) =
+  match rgenirpat with
+  | P.RGENIRP_var (rgenirlit, rgeniratts) -> RGENIRP_aux(RGENIRP_var(to_ast_rgenirlit ctx rgenirlit, List.map (to_ast_rgeniratt ctx) rgeniratts), (l, ()))
 
-let to_ast_mlir_pexp ctx (P.MLIRPat_aux(mlir_pexp, l)) =
-  match mlir_pexp with
-  | P.MLIRPat_exp (mlirpat, exp) -> MLIRPat_aux(MLIRPat_exp(to_ast_mlirpat ctx mlirpat, to_ast_exp ctx exp), (l,()))
+let to_ast_rgenir_pexp ctx (P.RGENIRPat_aux(rgenir_pexp, l)) =
+  match rgenir_pexp with
+  | P.RGENIRPat_exp (rgenirpat, exp) -> RGENIRPat_aux(RGENIRPat_exp(to_ast_rgenirpat ctx rgenirpat, to_ast_exp ctx exp), (l,()))
 
-let to_ast_mlircl ctx (P.MLIRCL_aux(mlircl, l)) =
-  match mlircl with
-  | P.MLIRCL_Mlircl(id, mlir_pexp) -> MLIRCL_aux(MLIRCL_Mlircl(to_ast_id ctx id, to_ast_mlir_pexp ctx mlir_pexp ), (l, ()))
+let to_ast_rgenircl ctx (P.RGENIRCL_aux(rgenircl, l)) =
+  match rgenircl with
+  | P.RGENIRCL_Rgenircl(id, rgenir_pexp) -> RGENIRCL_aux(RGENIRCL_Rgenircl(to_ast_id ctx id, to_ast_rgenir_pexp ctx rgenir_pexp ), (l, ()))
 
 let to_ast_mapdef ctx (P.MD_aux(md,l):P.mapdef) : unit mapdef =
   match md with
@@ -1925,10 +1925,10 @@ let to_ast_scattered ctx (P.SD_aux (aux, l)) =
         let id = to_ast_id ctx id in
         let member = to_ast_id ctx member in
         (None, SD_enumcl (id, member), ctx)
-    | P.SD_mlircl (id, mlircl) ->
+    | P.SD_rgenircl (id, rgenircl) ->
        let id = to_ast_id ctx id in
-       let mlircl = to_ast_mlircl ctx mlircl in
-       (None, SD_mlircl (id, mlircl), ctx)
+       let rgenircl = to_ast_rgenircl ctx rgenircl in
+       SD_rgenircl (id, rgenircl), ctx
   in
   (extra_def, SD_aux (aux, (l, empty_uannot)), ctx)
 

@@ -701,33 +701,33 @@ module Printer (Config : PRINT_CONFIG) = struct
         | Some exp -> separate space [string "register"; doc_id id; colon; doc_typ typ; equals; doc_exp exp]
       )
 
-  let doc_mlirlit (MLIRLit_aux (cl, _)) =
+  let doc_rgenirlit (RGENIRLit_aux (cl, _)) =
     utf8string (match cl with
-    | MLIRLit_string (s) -> "\"" ^ String.escaped s ^ "\"")
+    | RGENIRLit_string (s) -> "\"" ^ String.escaped s ^ "\"")
   
-  let doc_mliratt (MLIRatt_aux (cl, _)) =
+  let doc_rgeniratt (RGENIRatt_aux (cl, _)) =
     match cl with
-    | MLIRatt_id (id) -> doc_id id
-    | MLIRatt_ctor (id, id1, mlirlit) -> doc_id id ^^ string "<" ^^ doc_id id1 ^^ string ",[" ^^ doc_mlirlit mlirlit ^^ string "]>"
+    | RGENIRatt_id (id) -> doc_id id
+    | RGENIRatt_ctor (id, id1, rgenirlit) -> doc_id id ^^ string "<" ^^ doc_id id1 ^^ string ",[" ^^ doc_rgenirlit rgenirlit ^^ string "]>"
   
-  let doc_mlirpat (MLIRP_aux (cl, _)) =
+  let doc_rgenirpat (RGENIRP_aux (cl, _)) =
     match cl with
-    | MLIRP_var (mlirlit, mliratts) ->
-       let left = doc_mlirlit mlirlit in
-       string "<" ^^ left ^^ string ", ["  ^^ separate_map (comma ^^ space) doc_mliratt mliratts ^^ string "]>"
+    | RGENIRP_var (rgenirlit, rgeniratts) ->
+       let left = doc_rgenirlit rgenirlit in
+       string "<" ^^ left ^^ string ", ["  ^^ separate_map (comma ^^ space) doc_rgeniratt rgeniratts ^^ string "]>"
   
-  let doc_mlir_pexp (MLIRPat_aux (cl, _)) =
+  let doc_rgenir_pexp (RGENIRPat_aux (cl, _)) =
     match cl with
-    | MLIRPat_exp (mlirpat, exp) ->
-       let left = doc_mlirpat mlirpat in
+    | RGENIRPat_exp (rgenirpat, exp) ->
+       let left = doc_rgenirpat rgenirpat in
        let right = doc_exp exp in
        left ^^ space ^^ right
   
-  let doc_mlircl (MLIRCL_aux (cl, _)) =
+  let doc_rgenircl (RGENIRCL_aux (cl, _)) =
     match cl with
-    | MLIRCL_Mlircl (id, mlir_pexp) ->
+    | RGENIRCL_Rgenircl (id, rgenir_pexp) ->
        let left = doc_id id in
-       let right = doc_mlir_pexp mlir_pexp in
+       let right = doc_rgenir_pexp rgenir_pexp in
        left ^^ right
 
   let doc_field (typ, id) = separate space [doc_id id; colon; doc_typ typ]
@@ -735,14 +735,15 @@ module Printer (Config : PRINT_CONFIG) = struct
   let doc_union (Tu_aux (Tu_ty_id (typ, id), def_annot)) =
     doc_def_annot def_annot ^^ separate space [doc_id id; colon; doc_typ typ]
 
-  let doc_mlirdef (MLIRD_aux (MLIRD_cl (id, mlircls), _)) =
-    match mlircls with
+
+  let doc_rgenirdef (RGENIRD_aux (RGENIRD_cl (id, rgenircls), _)) =
+    match rgenircls with
     | [] -> failwith "Empty mapping"
     | _ ->
-       let sep = string "," ^^ hardline in
-       let clauses = separate_map sep doc_mlircl mlircls in
-       string "mlir clause" ^^ space ^^ doc_id id ^^ space ^^ string "=" ^^ space ^^ (surround 2 0 lbrace clauses rbrace)
-  
+      let sep = string "," ^^ hardline in
+      let clauses = separate_map sep doc_rgenircl rgenircls in
+      string "rgenir clause" ^^ space ^^ doc_id id ^^ space ^^ string "=" ^^ space ^^ (surround 2 0 lbrace clauses rbrace)
+
   let doc_dec (DEC_aux (reg,_)) =
     match reg with
     | DEC_reg (typ, id, opt_exp) ->
@@ -862,6 +863,8 @@ module Printer (Config : PRINT_CONFIG) = struct
     | SD_mapping (id, Typ_annot_opt_aux (Typ_annot_opt_some (typq, typ), _)) ->
         separate space [string "scattered mapping"; doc_id id; colon; doc_binding (typq, typ)]
     | SD_unioncl (id, tu) -> separate space [string "union clause"; doc_id id; equals; doc_union tu]
+    | SD_rgenircl (id, rgenircl) ->
+       separate space [string "rgenir clause"; doc_id id; equals; doc_rgenircl rgenircl]
     | SD_internal_unioncl_record (id, record_id, typq, fields) ->
         let prefix = separate space [string "internal_union_record clause"; doc_id id; doc_id record_id] in
         let params =
@@ -887,6 +890,7 @@ module Printer (Config : PRINT_CONFIG) = struct
     | DEF_type t_def -> doc_type_def t_def
     | DEF_fundef f_def -> doc_fundef f_def
     | DEF_mapdef m_def -> doc_mapdef m_def
+    | DEF_rgenirdef rgenir_def -> doc_rgenirdef rgenir_def
     | DEF_constraint nc -> string "constraint" ^^ space ^^ doc_nc nc
     | DEF_outcome (OV_aux (OV_outcome (id, typschm, args), _), defs) -> (
         string "outcome" ^^ space ^^ doc_id id ^^ space ^^ colon ^^ space ^^ doc_typschm typschm ^^ break 1

@@ -277,42 +277,41 @@ type typschm_opt_aux = TypSchm_opt_none | TypSchm_opt_some of typschm
 
 type typschm_opt = TypSchm_opt_aux of typschm_opt_aux * l
 
-type mlirlit_aux =
-  MLIRLit_string of string
+type rgenirlit_aux =
+  RGENIRLit_string of string
 
-type mlirlit =
-  MLIRLit_aux of ( mlirlit_aux) * l
+type rgenirlit =
+  RGENIRLit_aux of ( rgenirlit_aux) * l
 
-type mliratt_aux =
-    MLIRatt_id of id
-  | MLIRatt_ctor of id * id * mlirlit
+type rgeniratt_aux =
+    RGENIRatt_id of id
+  | RGENIRatt_ctor of id * id * rgenirlit
 
-type mliratt =
-  MLIRatt_aux of ( mliratt_aux) * l
+type rgeniratt =
+  RGENIRatt_aux of ( rgeniratt_aux) * l
 
-type mlirpat_aux =
-  MLIRP_var of mlirlit * ( mliratt) list
+type rgenirpat_aux =
+  RGENIRP_var of rgenirlit * ( rgeniratt) list
 
-type mlirpat =
-  MLIRP_aux of mlirpat_aux * l
+type rgenirpat =
+  RGENIRP_aux of rgenirpat_aux * l
 
-type mlirexp_aux =
-  MLIRE of id
+type rgenirexp_aux =
+  RGENIRE of id
 
-type mlirexp =
-  MLIRE_aux of mlirexp_aux * l
+type rgenirexp =
+  RGENIRE_aux of rgenirexp_aux * l
 
-type mlirpexp_aux =
-  MLIRPat_exp of mlirpat * exp
+type rgenirpexp_aux =
+  RGENIRPat_exp of rgenirpat * exp
 
-type mlir_pexp =
-  MLIRPat_aux of mlirpexp_aux * l
+type rgenir_pexp =
+  RGENIRPat_aux of rgenirpexp_aux * l
 
 type 
 tannot_opt_aux =  (* Optional type annotation for functions *)
    Typ_annot_opt_none
  | Typ_annot_opt_some of typquant * atyp
->>>>>>> 9e8dfeed (finish mlir first pass)
 
 type effect_opt_aux =
   | (* Optional effect annotation for functions *)
@@ -355,8 +354,8 @@ type subst_aux =
   | IS_id of id * id (* instantiate an identifier with another identifier *)
 
 type
-mlircl_aux =  (* mlir constructors *)
-  MLIRCL_Mlircl of id * mlir_pexp
+rgenircl_aux =  (* rgenir constructors *)
+  RGENIRCL_Rgenircl of id * rgenir_pexp
 
 type subst = IS_aux of subst_aux * l
 
@@ -395,8 +394,8 @@ type mpexp_aux = MPat_pat of mpat | MPat_when of mpat * exp
 type mpexp = MPat_aux of mpexp_aux * l
 
 type
-mlircl =
-   MLIRCL_aux of mlircl_aux * l
+rgenircl =
+   RGENIRCL_aux of rgenircl_aux * l
 
 type mapcl = MCL_aux of mapcl_aux * l
 
@@ -453,11 +452,11 @@ type scattered_def_aux =
 
 type default_typing_spec = DT_aux of default_typing_spec_aux * l
 
-type mlirdef_aux =  (* mapping definition (bidirectional pattern-match function) *)
- | MLIRD_cl of id * ( mlircl) list
+type rgenirdef_aux =  (* mapping definition (bidirectional pattern-match function) *)
+ | RGENIRD_cl of id * ( rgenircl) list
 
-type mlirdef =
- | MLIRD_aux of ( mlirdef_aux) * l
+type rgenirdef =
+ | RGENIRD_aux of ( rgenirdef_aux) * l
 
 type fundef = FD_aux of fundef_aux * l
 

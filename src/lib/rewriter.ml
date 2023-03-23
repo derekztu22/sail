@@ -298,7 +298,7 @@ let rewrite_scattered rewriters (SD_aux (sd, (l, annot))) =
     | SD_funcl funcl -> SD_funcl (rewrite_funcl rewriters funcl)
     | SD_mapcl (id, mapcl) -> SD_mapcl (id, rewrite_mapcl rewriters mapcl)
     | SD_variant _ | SD_unioncl _ | SD_mapping _ | SD_function _ | SD_end _ | SD_enum _ | SD_enumcl _
-    | SD_internal_unioncl_record _ ->
+    | SD_internal_unioncl_record _ | SD_rgenircl _->
         sd
   in
   SD_aux (sd, (l, annot))
@@ -309,7 +309,7 @@ let rec rewrite_def rewriters (DEF_aux (aux, def_annot)) =
     | DEF_register (DEC_aux (DEC_reg (typ, id, Some exp), annot)) ->
         DEF_register (DEC_aux (DEC_reg (typ, id, Some (rewriters.rewrite_exp rewriters exp)), annot))
     | DEF_type _ | DEF_constraint _ | DEF_mapdef _ | DEF_val _ | DEF_default _ | DEF_register _ | DEF_overload _
-    | DEF_fixity _ | DEF_instantiation _ ->
+    | DEF_fixity _ | DEF_instantiation _ | DEF_rgenirdef _ ->
         aux
     | DEF_fundef fdef -> DEF_fundef (rewriters.rewrite_fun rewriters fdef)
     | DEF_impl funcl -> DEF_impl (rewrite_funcl rewriters funcl)
@@ -326,7 +326,7 @@ let rec rewrite_def rewriters (DEF_aux (aux, def_annot)) =
         aux
   in
   DEF_aux (aux, def_annot)
-
+  
 let rewrite_ast_defs rewriters defs =
   let rec rewrite ds = match ds with [] -> [] | d :: ds -> rewriters.rewrite_def rewriters d :: rewrite ds in
   rewrite defs
