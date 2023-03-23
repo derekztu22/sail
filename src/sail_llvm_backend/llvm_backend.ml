@@ -89,6 +89,10 @@ let sizeof_reg reg =
     5
   else if reg = "vs1" then
     5
+  else if reg = "ms1" then
+    5
+  else if reg = "ms2" then
+    5
   else if reg = "rs1" then
     5
   else if reg = "ms3" then
@@ -152,6 +156,14 @@ let formats_string mapcl_string =
           else if str_contains h "vs1" then
             "let Inst{" ^ string_of_int(bits_left) ^ "-" ^ string_of_int(bits_left - (sizeof_reg "vs1") + 1) ^
             "} = vs1;\n" ^ bit_matching t (bits_left - (sizeof_reg "vs1"))
+
+          else if str_contains h "ms1" then
+            "let Inst{" ^ string_of_int(bits_left) ^ "-" ^ string_of_int(bits_left - (sizeof_reg "ms1") + 1) ^
+            "} = ms1;\n" ^ bit_matching t (bits_left - (sizeof_reg "ms1"))
+
+          else if str_contains h "ms2" then
+            "let Inst{" ^ string_of_int(bits_left) ^ "-" ^ string_of_int(bits_left - (sizeof_reg "ms2") + 1) ^
+            "} = ms2;\n" ^ bit_matching t (bits_left - (sizeof_reg "ms2"))
 
           else if str_contains h "ms3" then
             "let Inst{" ^ string_of_int(bits_left) ^ "-" ^ string_of_int(bits_left - (sizeof_reg "ms3") + 1) ^
@@ -248,6 +260,10 @@ let instclass_string mapcl_string =
           delimeter n ^ "VR:$vs1" ^ find_inregs t (n + 1)
         else if str_contains h "ms3" then
           delimeter n ^ "MR:$ms3" ^ find_inregs t (n + 1)
+        else if str_contains h "ms2" then
+          delimeter n ^ "MR:$ms2" ^ find_inregs t (n + 1)
+        else if str_contains h "ms1" then
+          delimeter n ^ "MR:$ms1" ^ find_inregs t (n + 1)
         else if str_contains h "rs1" then
           delimeter n ^ "GPR:$rs1" ^ find_inregs t (n + 1)
         else
@@ -270,6 +286,10 @@ let instclass_string mapcl_string =
           delimeter n ^ "$vs2" ^ find_order t (n+1)
         else if str_contains h "vs1" then
           delimeter n ^ "$vs1" ^ find_order t (n+1)
+        else if str_contains h "ms1" then
+          delimeter n ^ "$ms1" ^ find_order t (n+1)
+        else if str_contains h "ms2" then
+          delimeter n ^ "$ms2" ^ find_order t (n+1)
         else if str_contains h "rs1" then
           delimeter n ^ "(${rs1})" ^ find_order t (n+1)
         else
@@ -313,6 +333,10 @@ let instdef_string mapcl_string =
           else if str_contains reg_name "vs2" then
             delimeter n ^ "Read" ^ inst_name  ^ (find_sched_order t inst_name (n+1))
           else if str_contains reg_name "vs1" then
+            delimeter n ^ "Read" ^ inst_name  ^ (find_sched_order t inst_name (n+1))
+          else if str_contains reg_name "ms1" then
+            delimeter n ^ "Read" ^ inst_name  ^ (find_sched_order t inst_name (n+1))
+          else if str_contains reg_name "ms2" then
             delimeter n ^ "Read" ^ inst_name  ^ (find_sched_order t inst_name (n+1))
           else if str_contains reg_name "rs1" then
             delimeter n ^ "Read" ^ inst_name  ^ (find_sched_order t inst_name (n+1))

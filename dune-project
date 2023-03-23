@@ -74,7 +74,7 @@ http://www.cl.cam.ac.uk/~pes20/sail/.
     (libsail (= :version))))
 
 (package
-  (name sail_mlir_backend)
+  (name sail_pytorch_backend)
   (synopsis "Sail to MLIR translation")
   (depends
     (libsail (= :version))))
@@ -160,7 +160,7 @@ http://www.cl.cam.ac.uk/~pes20/sail/.
     (sail_manifest (and (= :version) :build))
     (sail_ocaml_backend (and (= :version) :post))
     (sail_c_backend (and (= :version) :post))
-    (sail_mlir_backend (and (= :version) :post))
+    (sail_pytorch_backend (and (= :version) :post))
     (sail_llvm_backend (and (= :version) :post))
     (sail_smt_backend (and (= :version) :post))
     (sail_sv_backend (and (= :version) :post))
