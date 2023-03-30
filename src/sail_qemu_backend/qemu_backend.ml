@@ -87,6 +87,26 @@ let str_contains s1 s2 =
         try ignore (Str.search_forward re s1 0); true
         with Not_found -> false
 
+let get_bit_type inst_name =
+  if str_contains inst_name "64" then
+    "float"
+  else if str_contains inst_name "32" then
+    "float"
+  else if str_contains inst_name "16"  then
+    "float"
+  else
+    "int32_t"
+
+let get_num_elem inst_name =
+  if str_contains inst_name "64" then
+    "8"
+  else if str_contains inst_name "32" then
+    "16"
+  else if str_contains inst_name "16" then
+    "32"
+  else
+    "16"
+
 let qemu_execute_string_parse funcl_string_list =
     let mm_regex = Str.regexp_string "_MM" in
     let leftp_regex = Str.regexp_string "(" in
@@ -193,6 +213,8 @@ let qemu_execute_string_parse funcl_string_list =
               let idx = List.nth(String.split_on_char '[' idx) 1  in
               idx
         in
+        let bit_type = get_bit_type inst_name in
+        let num_elem = get_num_elem inst_name in
 
         if str_contains h "foreach" then
           let foreach_regex = Str.regexp_string "foreach" in
@@ -218,11 +240,16 @@ let qemu_execute_string_parse funcl_string_list =
           let for_loop = Str.replace_first leftp_regex "(uint32_t " for_loop in
           let for_loop = Str.replace_first one_in_inc_regex ("++" ^ idx) for_loop in
           if str_contains inst_name "loadz" || str_contains inst_name "storez" then
+            let gt = "< " ^ num_elem ^ "*" ^ num_elem in
+            (*let for_loop = Str.replace_first range_regex (idx ^ "< 16*16")  for_loop in*)
             let for_loop = Str.replace_first range_regex (idx ^ "< 16*16")  for_loop in
+            let for_loop = Str.replace_first range_regex (idx ^ gt)  for_loop in
             let further_execution, next = body_func_execute inst_name t (n+1) in
             for_loop ^ "\\\n" ^ further_execution, next 
           else
-            let for_loop = Str.replace_first range_regex (idx ^ "< 16")  for_loop in
+            let gt = "< " ^ num_elem in
+            (*let for_loop = Str.replace_first range_regex (idx ^ "< 16")  for_loop in*)
+            let for_loop = Str.replace_first range_regex (idx ^ gt)  for_loop in
             let further_execution, next = body_func_execute inst_name t (n+1) in
             for_loop ^ "\\\n" ^ further_execution, next 
 
@@ -265,36 +292,37 @@ let qemu_execute_string_parse funcl_string_list =
           let comma_whitespace_regex = Str.regexp_string ", " in
           let num_elem_regex = Str.regexp_string "num_elem" in
 
-          let h = Str.global_replace num_elem_regex "16" h in 
 
           if str_contains h "plain_vector_access" then
-            let let_str = List.hd (String.split_on_char '=' (Str.replace_first let_regex "int32_t" h)) in
+            let h = Str.global_replace num_elem_regex num_elem h in 
+            let let_str = List.hd (String.split_on_char '=' (Str.replace_first let_regex bit_type h)) in
             let idx = List.nth (Str.split vector_regex h) 1 in
             let idx = get_idx idx in
             let idn_regex = Str.regexp_string "__idn" in
-            let idx = Str.global_replace idn_regex "16" idx in 
+            let idx = Str.global_replace idn_regex num_elem idx in 
+            let deref = "*((" ^ bit_type ^ "*)" in
       
             if str_contains h "vs1" then
               let further_execution, next = body_func_execute inst_name t (n) in
-              let_str ^ "= *((int32_t*) vs1 +" ^ idx ^ ");\\\n" ^ further_execution, next
+              let_str ^ "= "^ deref ^ "vs1 +" ^ idx ^ ");\\\n" ^ further_execution, next
             else if str_contains h "vs2" then
               let further_execution, next = body_func_execute inst_name t (n) in
-              let_str ^ "= *((int32_t*) vs2 +" ^ idx ^ ");\\\n" ^ further_execution, next
+              let_str ^ "= "^ deref ^ "vs2 +" ^ idx ^ ");\\\n" ^ further_execution, next
             else if str_contains h "ms2" then
               let further_execution, next = body_func_execute inst_name t (n) in
-              let_str ^ "= *((int32_t*) ms2 +" ^ idx ^ ");\\\n" ^ further_execution, next
+              let_str ^ "= "^ deref ^ "ms2 +" ^ idx ^ ");\\\n" ^ further_execution, next
             else if str_contains h "ms1" then
               let further_execution, next = body_func_execute inst_name t (n) in
-              let_str ^ "= *((int32_t*) ms1 +" ^ idx ^ ");\\\n" ^ further_execution, next
+              let_str ^ "= "^ deref ^ "ms1 +" ^ idx ^ ");\\\n" ^ further_execution, next
             else if str_contains h "md" then
               let further_execution, next = body_func_execute inst_name t (n) in
-              let_str ^ "= *((int32_t*) md +" ^ idx ^ ");\\\n" ^ further_execution, next 
+              let_str ^ "= "^ deref ^ "md +" ^ idx ^ ");\\\n" ^ further_execution, next
             else
               body_func_execute inst_name t (n)
 
           else if str_contains h "mult_atom" then
             let mult_atom_regex = Str.regexp_string "mult_atom" in
-            let let_str = List.hd (String.split_on_char '=' (Str.replace_first let_regex "int32_t" h)) in
+            let let_str = List.hd (String.split_on_char '=' (Str.replace_first let_regex bit_type h)) in
             let vars = List.nth (Str.split mult_atom_regex h) 1 in
             let vars = Str.global_replace rightp_regex "" vars in 
             let vars = Str.global_replace leftp_regex "" vars in 
@@ -305,7 +333,7 @@ let qemu_execute_string_parse funcl_string_list =
             
           else if  str_contains h "add_bits_int" then
             let add_atom_regex = Str.regexp_string "add_bits_int" in
-            let let_str = List.hd (String.split_on_char '=' (Str.replace_first let_regex "int32_t" h)) in
+            let let_str = List.hd (String.split_on_char '=' (Str.replace_first let_regex bit_type h)) in
             let vars = List.nth (Str.split add_atom_regex h) 1 in
             let vars = Str.global_replace rightp_regex "" vars in 
             let vars = Str.global_replace leftp_regex "" vars in 
@@ -316,7 +344,7 @@ let qemu_execute_string_parse funcl_string_list =
 
           else if  str_contains h "sub_vec_int" then
             let sub_atom_regex = Str.regexp_string "sub_vec_int" in
-            let let_str = List.hd (String.split_on_char '=' (Str.replace_first let_regex "int32_t" h)) in
+            let let_str = List.hd (String.split_on_char '=' (Str.replace_first let_regex bit_type h)) in
             let vars = List.nth (Str.split sub_atom_regex h) 1 in
             let vars = Str.global_replace rightp_regex "" vars in 
             let vars = Str.global_replace leftp_regex "" vars in 
@@ -347,26 +375,27 @@ let qemu_execute_string_parse funcl_string_list =
         else if str_contains h "result[" then
           let num_elem_regex = Str.regexp_string "num_elem" in
 
-          let h = Str.global_replace num_elem_regex "16" h in 
+          let h = Str.global_replace num_elem_regex num_elem h in 
+          let deref = "*((" ^ bit_type ^ "*)" in
 
           let get_result_idx_var h = 
             let var = List.nth (String.split_on_char '=' h) 1 in
-              let idx = List.hd (String.split_on_char '=' h ) in
+            let idx = List.hd (String.split_on_char '=' h ) in
      
             if str_contains var "plain_vector_access" then
   
               let vector_regex = Str.regexp_string "plain_vector_access" in
               let var = List.nth (Str.split vector_regex h) 1 in
               if str_contains h "vs2" then
-                get_idx idx, "*((int32_t*) vs2 +" ^ (get_idx var) ^ ")"
+                get_idx idx, deref ^"vs2 +" ^ (get_idx var) ^ ")"
               else if str_contains h "vs1" then
-                get_idx idx, "*((int32_t*) vs1 +" ^ (get_idx var) ^ ")"
+                get_idx idx, deref ^ "vs1 +" ^ (get_idx var) ^ ")"
               else if str_contains h "ms1" then
-                get_idx idx, "*((int32_t*) ms1 +" ^ (get_idx var) ^ ")"
+                get_idx idx, deref ^ "ms1 +" ^ (get_idx var) ^ ")"
               else if str_contains h "ms2" then
-                get_idx idx, "*((int32_t*) ms2 +" ^ (get_idx var) ^ ")"
+                get_idx idx, deref ^ "ms2 +" ^ (get_idx var) ^ ")"
               else
-                get_idx idx, "*((int32_t*) vs2 +" ^ (get_idx var) ^ ")"
+                get_idx idx, deref ^ "vs2 +" ^ (get_idx var) ^ ")"
             else
               let idx = List.hd (String.split_on_char '=' h ) in
               get_idx idx, var
@@ -377,12 +406,7 @@ let qemu_execute_string_parse funcl_string_list =
 
           let idx = Str.global_replace idn_regex "16" idx in 
           let further_execution, next = body_func_execute inst_name t (n) in
-          "*((int32_t*) md + " ^ idx ^ ") = " ^ var ^ ";\\\n" ^ further_execution, next
-
-        (*else if (Str.global_replace whitespace_regex "" h) = "}" then
-          "}\\\n" ^ body_func_execute t
-        else if (Str.global_replace whitespace_regex "" h) = "};" then
-          "}\\\n" ^ body_func_execute t*)
+          deref ^ " md + " ^ idx ^ ") = " ^ var ^ ";\\\n" ^ further_execution, next
         else if str_contains h "RETIRE_SUCCESS" then
           "", n
         else
