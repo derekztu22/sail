@@ -107,6 +107,22 @@ let get_num_elem inst_name =
   else
     "16"
 
+let get_float_size inst_name =
+  if str_contains inst_name "64" then
+    "64"
+  else if str_contains inst_name "32" then
+    "32"
+  else if str_contains inst_name "16" then
+    "16"
+  else
+    "64"
+
+let is_float inst_name =
+  if str_contains inst_name "f" || str_contains inst_name "F" then
+    true
+  else
+    false
+
 let qemu_execute_string_parse funcl_string_list =
     let mm_regex = Str.regexp_string "_MM" in
     let leftp_regex = Str.regexp_string "(" in
@@ -329,7 +345,12 @@ let qemu_execute_string_parse funcl_string_list =
             let vars = Str.global_replace semicolon_regex "" vars in 
             let vars = Str.split comma_whitespace_regex vars in
             let further_execution, next = body_func_execute inst_name t (n) in
-            let_str ^ " = " ^ List.hd vars ^ "*" ^ List.nth vars 1 ^ ";\\\n" ^ further_execution, next
+            let float_size = get_float_size inst_name in
+            if is_float inst_name then
+              (let_str ^ "= float" ^ float_size ^ "_mul(" ^ List.hd vars ^ "," ^
+              List.nth vars 1 ^ ", &env->fp_status);\\\n" ^ further_execution, next)
+            else
+              let_str ^ " = " ^ List.hd vars ^ "*" ^ List.nth vars 1 ^ ";\\\n" ^ further_execution, next
             
           else if  str_contains h "add_bits_int" then
             let add_atom_regex = Str.regexp_string "add_bits_int" in
@@ -340,7 +361,12 @@ let qemu_execute_string_parse funcl_string_list =
             let vars = Str.global_replace semicolon_regex "" vars in 
             let vars = Str.split comma_whitespace_regex vars in
             let further_execution, next = body_func_execute inst_name t (n) in
-            let_str ^ " = " ^ List.hd vars ^ "+" ^ List.nth vars 1 ^ ";\\\n" ^ further_execution, next
+            let float_size = get_float_size inst_name in
+            if is_float inst_name then
+              (let_str ^ "= float" ^ float_size ^ "_add(" ^ List.hd vars ^ "," ^
+              List.nth vars 1 ^ ", &env->fp_status);\\\n" ^ further_execution, next)
+            else
+              let_str ^ " = " ^ List.hd vars ^ "+" ^ List.nth vars 1 ^ ";\\\n" ^ further_execution, next
 
           else if  str_contains h "sub_vec_int" then
             let sub_atom_regex = Str.regexp_string "sub_vec_int" in
@@ -351,7 +377,12 @@ let qemu_execute_string_parse funcl_string_list =
             let vars = Str.global_replace semicolon_regex "" vars in 
             let vars = Str.split comma_whitespace_regex vars in
             let further_execution, next = body_func_execute inst_name t (n) in
-	    let_str ^ " = " ^ List.hd vars ^ "-" ^ List.nth vars 1 ^ ";\\\n" ^ further_execution, next
+            let float_size = get_float_size inst_name in
+            if is_float inst_name then
+              (let_str ^ "= float" ^ float_size ^ "_sub(" ^ List.hd vars ^ "," ^
+              List.nth vars 1 ^ ", &env->fp_status);\\\n" ^ further_execution, next)
+            else
+              let_str ^ " = " ^ List.hd vars ^ "-" ^ List.nth vars 1 ^ ";\\\n" ^ further_execution, next
 
           else if (str_contains h ":") && (str_contains h "int") && (str_contains h "=") then
             let maybe_digit = List.nth (String.split_on_char '=' h) 1 in
