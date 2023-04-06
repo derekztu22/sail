@@ -1123,7 +1123,7 @@ static inline target_ulong adjust_addrm(CPURISCVState *env, target_ulong addr)
   let qemu_decode = process_defs outtype ast.defs in
 
 
-  let fname0 = "generated_definitions/qemu/trans_rvmm.c.in" in
+  let fname0 = "generated_definitions/qemu/trans_rvmm.c.inc" in
   let fname1 = "generated_definitions/qemu/matrix_helper.c" in
   let fname2 = "generated_definitions/qemu/helper.h" in
   let fname3 = "generated_definitions/qemu/insn32.decode" in
