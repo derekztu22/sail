@@ -205,12 +205,12 @@ let rec tensorops_rgenircl rgenircl_string_list outtype=
                                        "asm volatile (\"loadxy.mm m2, (%0) \\n\\t\" ::\"r\"((int64_t) b_ptr));\n" ^
                                        "asm volatile (\"loadz.mm m0, (%0) \\n\\t\" ::\"r\"((int64_t) c_ptr));\n" in 
                         let load_str = load_str ^ "asm volatile (\"" ^ assem_name ^ " m0, m2, m1 \\n\\t\");\n" in
-                        let store_str = "asm volatile (\"store.mm m0, (%0) \\n\\t\" ::\"r\"((int64_t) c_ptr));\n" in
+                        let store_str = "asm volatile (\"storez.mm m0, (%0) \\n\\t\" ::\"r\"((int64_t) c_ptr));\n" in
                         load_str ^ store_str
                      else if n = 3 then
-                        let load_str = "asm volatile (\"load.mm m1, (%0) \\n\\t\" ::\"r\"((int64_t) a_ptr));\n" in
+                        let load_str = "asm volatile (\"loadxy.mm m1, (%0) \\n\\t\" ::\"r\"((int64_t) a_ptr));\n" in
                         let load_str = load_str ^ "asm volatile (\"" ^ assem_name ^ " m0, m1 \\n\\t\");\n" in
-                        let store_str = "asm volatile (\"store.mm m0, (%0) \\n\\t\" ::\"r\"((int64_t) b_ptr));\n" in
+                        let store_str = "asm volatile (\"storez.mm m0, (%0) \\n\\t\" ::\"r\"((int64_t) b_ptr));\n" in
                         load_str ^ store_str
                      else
                        ""
