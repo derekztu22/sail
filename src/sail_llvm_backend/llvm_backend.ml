@@ -108,279 +108,324 @@ let str_contains s1 s2 =
         try ignore (Str.search_forward re s1 0); true
         with Not_found -> false
 
-let formats_string mapcl_string =
-  if str_contains mapcl_string "_MM" then
-    let mm_regex = Str.regexp_string "_MM" in
-    let bidirec_regex = Str.regexp_string "<->" in
-    let alias_regex = Str.regexp_string "@" in
-    let leftp_regex = Str.regexp_string "(" in
-    let rightp_regex = Str.regexp_string ")" in
-    let commaspace_regex = Str.regexp_string ", " in
+let rec get_mpat_annot (MP_aux(mp_aux, _) as mpat) =
+  let underscore_regex = Str.regexp_string "_" in
+  match mp_aux with
+  | MP_app (id, pats) -> 
+    if str_contains (string_of_id id) "_" then
+      List.nth (Str.split underscore_regex (string_of_id id)) 1
+    else
+      ""
+  | _ -> "" 
 
-    let head = "class RVInst" in
-    let tdparams = "<dag outs, dag ins, string opcodestr, string argstr>" in
-    let class_def = "\n: RVInst<outs, ins, opcodestr, argstr, [], InstFormatR> {\n" in
-    let end_parenth = "let Uses = [ML];\n}\n\n" in
-    let mapcl_string = Str.global_replace leftp_regex "" mapcl_string in
-    let mapcl_string = Str.global_replace rightp_regex "" mapcl_string in
-    let inst_name = List.hd (Str.split mm_regex mapcl_string) ^ "_MM"in
-    let params = List.nth (Str.split mm_regex  (List.hd (Str.split bidirec_regex mapcl_string))) 1 in
-    let params = Str.split commaspace_regex params in
+let get_mpexp_annot mpexp = 
+  match mpexp with
+  | MPat_pat mpat -> get_mpat_annot mpat
+  | _ -> ""
 
-    let rec param_matching params = 
-      match params with
-       | [] -> ""
-       | h :: t -> "bits<" ^ string_of_int(sizeof_reg h) ^ ">" ^ h ^ ";\n" ^ param_matching t
-    in
-    let params = param_matching params in
+let rec get_mpat_params (MP_aux(mp_aux, _) as mpat) =
+  let commaspace_regex = Str.regexp_string ", " in
+  match mp_aux with
+  | MP_app (id, pats) ->
+      Str.split commaspace_regex (Pretty_print_sail.to_string(separate_map (comma ^^ space) Pretty_print_sail.doc_mpat pats))
+  | _ -> [""] 
 
-    let bit_defs = List.nth (Str.split bidirec_regex mapcl_string) 1 in
-    let split_bit_defs = Str.split alias_regex bit_defs in
-    let rec bit_matching split_bit_defs bits_left = 
-      let whitespace_regex = Str.regexp_string " " in
-      match split_bit_defs with
-        | [] -> ""
-        | h :: t ->
-          let h =  Str.global_replace whitespace_regex "" h in
-          if bits_left = 6 then
-            "let Opcode = " ^ h ^ ";\n"
+let get_instr_params mpexp =
+  match mpexp with
+  | MPat_pat mpat -> get_mpat_params mpat
+  | _ -> [""]
 
-          else if str_contains h "vs2" then
-            "let Inst{" ^ string_of_int(bits_left) ^ "-" ^ string_of_int(bits_left - (sizeof_reg "vs2") + 1) ^
-            "} = vs2;\n" ^ bit_matching t (bits_left - (sizeof_reg "vs2"))
+let rec get_mpat_name (MP_aux(mp_aux, _) as mpat) =
+  let commaspace_regex = Str.regexp_string ", " in
+  match mp_aux with
+  | MP_app (id, pats) -> string_of_id id
+  | _ -> ""
 
-          else if str_contains h "rs1" then
-            "let Inst{" ^ string_of_int(bits_left) ^ "-" ^ string_of_int(bits_left - (sizeof_reg "rs1") + 1) ^
-            "} = rs1;\n" ^ bit_matching t (bits_left - (sizeof_reg "rs1"))
+let get_instr_name mpexp =
+  match mpexp with
+  | MPat_pat mpat -> get_mpat_name mpat
+  | _ -> ""
 
-          else if str_contains h "vs1" then
-            "let Inst{" ^ string_of_int(bits_left) ^ "-" ^ string_of_int(bits_left - (sizeof_reg "vs1") + 1) ^
-            "} = vs1;\n" ^ bit_matching t (bits_left - (sizeof_reg "vs1"))
 
-          else if str_contains h "ms1" then
-            "let Inst{" ^ string_of_int(bits_left) ^ "-" ^ string_of_int(bits_left - (sizeof_reg "ms1") + 1) ^
-            "} = ms1;\n" ^ bit_matching t (bits_left - (sizeof_reg "ms1"))
+let get_bit (L_aux(l, _)) = 
+  utf8string (match l with
+  | L_bin n -> n
+  | _ -> "")
 
-          else if str_contains h "ms2" then
-            "let Inst{" ^ string_of_int(bits_left) ^ "-" ^ string_of_int(bits_left - (sizeof_reg "ms2") + 1) ^
-            "} = ms2;\n" ^ bit_matching t (bits_left - (sizeof_reg "ms2"))
 
-          else if str_contains h "ms3" then
-            "let Inst{" ^ string_of_int(bits_left) ^ "-" ^ string_of_int(bits_left - (sizeof_reg "ms3") + 1) ^
-            "} = ms3;\n" ^ bit_matching t (bits_left - (sizeof_reg "ms3"))
+let get_register_string mpat_string =
+  let colon_regex = Str.regexp_string " : " in
+  let lparen_regex = Str.regexp_string "(" in
+  let reg_name = List.hd (Str.split colon_regex mpat_string) in
+  Str.global_replace lparen_regex "" reg_name
 
-          else if str_contains h "md" then
-            "let Inst{" ^ string_of_int(bits_left) ^ "-" ^ string_of_int(bits_left - (sizeof_reg "md") + 1) ^
-            "} = md;\n" ^ bit_matching t (bits_left - (sizeof_reg "md"))
 
-          (* it's a bit def *)
-          else
-            let bits = Str.string_after h 2 in
+let rec get_mpat_bit_format (MP_aux (mp_aux, _) as mpat)  bit_num = 
+  match mp_aux with
+  | MP_lit lit ->
+            let bits = Pretty_print_sail.to_string(get_bit lit) in
             let str_length = String.length bits in
-            if str_length = 1 then
-              "let Inst{" ^ string_of_int(bits_left) ^ "} = " ^ h ^ ";\n" ^ bit_matching t (bits_left -1)
+
+             if str_length = 1 then
+              "let Inst{" ^ string_of_int(bit_num) ^ "} = 0b" ^ bits ^ ";\n", (bit_num - 1)
             else
-              "let Inst{" ^ string_of_int(bits_left) ^ "-" ^ string_of_int(bits_left - str_length + 1) ^
-              "} = " ^ h ^ ";\n" ^ bit_matching t (bits_left - str_length)
-    in
-    let bit_body = bit_matching split_bit_defs 31 in
+              "let Inst{" ^ string_of_int(bit_num) ^ "-" ^ string_of_int(bit_num - str_length + 1) ^
+              "} = 0b" ^ bits ^ ";\n", (bit_num - str_length)
 
-    head ^ inst_name ^ tdparams ^ class_def ^ params ^ bit_body ^ end_parenth
-
-  else 
-    ""
-let is_read_type mapcl_string =
-  false
-
-let scheduler_string mapcl_string = 
-  if str_contains mapcl_string "_MM" then
-    let mm_regex = Str.regexp_string "_MM" in
-    let inst_name = List.hd (Str.split mm_regex mapcl_string) ^"_MM" in
-    "def Read" ^ inst_name ^ " : SchedRead;\n" ^
-    "def Write" ^ inst_name ^ " : SchedWrite;\n"
-  
-  else
-    ""
-let u_scheduler_string mapcl_string = 
-  if str_contains mapcl_string "_MM" then
-    let mm_regex = Str.regexp_string "_MM" in
-    let inst_name = List.hd (Str.split mm_regex mapcl_string) ^ "_MM" in
-    "def : ReadAdvance<Read" ^ inst_name ^ ", 0>;\n" ^
-    "def : WriteRes<Write" ^ inst_name ^ ", []>;\n"
-  else
-    ""
-
-let instclass_string mapcl_string = 
-  if str_contains mapcl_string "_MM" then
-    let mm_regex = Str.regexp_string "_MM" in
-    let bidirec_regex = Str.regexp_string "<->" in
-    let carat_regex = Str.regexp_string "^" in
-    let leftp_regex = Str.regexp_string "(" in
-    let rightp_regex = Str.regexp_string ")" in
-    let commaspace_regex = Str.regexp_string ", " in
-
-    let mapcl_string = Str.global_replace leftp_regex "" mapcl_string in
-    let mapcl_string = Str.global_replace rightp_regex "" mapcl_string in
-    let inst_name = List.hd (Str.split mm_regex mapcl_string) ^ "_MM"in
-    let params = List.nth (Str.split mm_regex  (List.hd (Str.split bidirec_regex mapcl_string))) 1 in
-    let params = Str.split commaspace_regex params in
-    let bidirect_right = (Str.split carat_regex (List.nth (Str.split bidirec_regex mapcl_string) 1)) in
-
-    let rec find_outreg params =
-      match params with
-      | [] -> "" 
+  | MP_vector_concat pats -> 
+    let rec create_bit_body patts bit_num = 
+      match patts with 
+      | [] -> "", 0
       | h :: t -> 
-        if str_contains h "reg_name" then
-          let reg_regex = Str.regexp_string "reg_name" in
-          let reg = List.nth (Str.split reg_regex h) 1 in
-          if str_contains h "mreg" then 
-            if str_contains h "ms3" then
-              ""
-            else
-              "MR:$" ^ reg
-          else if str_contains h "vreg" then 
-            "VR:$" ^ reg
-          else
-            "GPR:$" ^ reg
+        if bit_num = 6 then
+          "let Opcode = " ^ string_of_mpat h ^ ";\n", 0
         else
-          find_outreg t
+          let bit_def0, bits_left = get_mpat_bit_format h bit_num in
+          let bit_def1, bits_left = create_bit_body t bits_left in
+          bit_def0 ^ bit_def1, bits_left
     in
-    let outreg = "(outs " ^ find_outreg bidirect_right  ^ " ),\n" in
-     
-    let rec find_inregs params n =
+    create_bit_body pats bit_num
+   | _ -> 
+     let reg_name = get_register_string (string_of_mpat mpat) in
+     "let Inst{" ^ string_of_int(bit_num) ^ "-" ^ string_of_int(bit_num - 5 + 1) ^
+     "} = " ^ reg_name ^ ";\n", bit_num - 5
+
+let create_bit_format mpexp bit_num = 
+  match mpexp with
+  | MPat_pat mpat -> get_mpat_bit_format mpat bit_num
+  | _ -> "", 0
+
+let matrix_format_string mpexp1 mpexp2 =
+  let head = "class RVInst" in
+  let tdparams = "<dag outs, dag ins, string opcodestr, string argstr>" in
+  let class_def = "\n: RVInst<outs, ins, opcodestr, argstr, [], InstFormatR> {\n" in
+  let end_parenth = "let Uses = [ML];\n}\n\n" in
+  let params = get_instr_params mpexp1 in
+  let inst_name = get_instr_name mpexp1 in
+  let rec param_matching params = 
+    match params with
+     | [] -> ""
+     | h :: t -> "bits<" ^ string_of_int(sizeof_reg h) ^ ">" ^ h ^ ";\n" ^ param_matching t
+  in
+  let params = param_matching params in
+  let bit_body, _ = create_bit_format mpexp2 31 in 
+  head ^ inst_name ^ tdparams ^ class_def ^ params ^ bit_body ^ end_parenth
+  
+
+let formats_string (MPat_aux(mpexp1, _)) (MPat_aux(mpexp2, _)) = 
+  let annot = get_mpexp_annot mpexp1 in
+  match annot with
+    | "MM" -> matrix_format_string mpexp1 mpexp2
+    | _ -> ""
+
+let matrix_scheduler_string mpexp1 = 
+  let inst_name = get_instr_name mpexp1 in
+  "def Read" ^ inst_name ^ " : SchedRead;\n" ^
+  "def Write" ^ inst_name ^ " : SchedWrite;\n"
+  
+let scheduler_string  (MPat_aux(mpexp1, _)) = 
+  let annot = get_mpexp_annot mpexp1 in
+  match annot with
+    | "MM" -> matrix_scheduler_string mpexp1
+    | _ -> ""
+
+let matrix_uscheduler_string mpexp1 = 
+  let inst_name = get_instr_name mpexp1 in
+  "def : ReadAdvance<Read" ^ inst_name ^ ", 0>;\n" ^
+  "def : WriteRes<Write" ^ inst_name ^ ", []>;\n"
+
+let uscheduler_string  (MPat_aux(mpexp1, _)) = 
+  let annot = get_mpexp_annot mpexp1 in
+  match annot with
+    | "MM" -> matrix_uscheduler_string mpexp1
+    | _ -> ""
+
+let get_func_param func = 
+  let lparen_regex = Str.regexp_string "(" in
+  let rparen_regex = Str.regexp_string ")" in
+  List.hd (Str.split rparen_regex (List.nth (Str.split lparen_regex func) 1))
+
+
+let get_mpat_outreg (MP_aux (mp_aux, _) as mpat) =
+  match mp_aux with
+  | MP_string_append pats ->
+    let rec get_outreg_pat patts =
+      match patts with 
+      | [] -> ""
+      | h :: t -> 
+        if str_contains (string_of_mpat h) "reg_name" then
+          let reg_name = get_func_param (string_of_mpat h)  in
+          (match reg_name with
+          | "md" -> "MR:$" ^  reg_name
+          | _ -> get_outreg_pat t)
+        else
+          get_outreg_pat t
+    in
+    get_outreg_pat pats
+  | _ -> ""
+
+let get_instr_outreg mpexp = 
+  match mpexp with
+  | MPat_pat mpat -> get_mpat_outreg mpat
+  | _ -> ""
+
+let rec get_mpat_inregs (MP_aux (mp_aux, _) as mpat) =
+  match mp_aux with
+  | MP_string_append pats ->
+    let rec get_inreg_pat patts n =
       let delimeter n =
         if n = 0 then "" else ","
       in
-      match params with
+      match patts with 
       | [] -> ""
-      | h :: t ->
-        if str_contains h "vs2" then
-          delimeter n ^ "VR:$vs2" ^ find_inregs t (n + 1)
-        else if str_contains h "vs1" then
-          delimeter n ^ "VR:$vs1" ^ find_inregs t (n + 1)
-        else if str_contains h "ms3" then
-          delimeter n ^ "MR:$ms3" ^ find_inregs t (n + 1)
-        else if str_contains h "ms2" then
-          delimeter n ^ "MR:$ms2" ^ find_inregs t (n + 1)
-        else if str_contains h "ms1" then
-          delimeter n ^ "MR:$ms1" ^ find_inregs t (n + 1)
-        else if str_contains h "rs1" then
-          delimeter n ^ "GPR:$rs1" ^ find_inregs t (n + 1)
+      | h :: t -> 
+        if str_contains (string_of_mpat h) "reg_name" then
+          let reg_name = get_func_param (string_of_mpat h)  in
+          (match reg_name with
+          | "ms3" -> delimeter n ^ "MR:$" ^ reg_name ^ get_inreg_pat t (n + 1) 
+          | "ms2" -> delimeter n ^ "MR:$" ^ reg_name ^ get_inreg_pat t (n + 1) 
+          | "ms1" -> delimeter n ^ "MR:$" ^ reg_name ^ get_inreg_pat t (n + 1)
+          | "rs1" -> delimeter n ^ "GPR:$" ^ reg_name ^ get_inreg_pat t (n + 1)
+          | _ -> "" ^ get_inreg_pat t n)
         else
-          find_inregs t n
+          get_inreg_pat t n
     in
-    let inreg = "(ins " ^ find_inregs params 0 ^ ")," in
+    get_inreg_pat pats 0
+  | _ -> ""
 
-    let rec find_order params n =
+let get_instr_inregs mpexp = 
+  match mpexp with
+  | MPat_pat mpat -> get_mpat_inregs mpat
+  | _ -> ""
+
+let rec get_mpat_argstr (MP_aux (mp_aux, _) as mpat) =
+  match mp_aux with
+  | MP_string_append pats ->
+    let rec get_argstr patts n =
       let delimeter n =
         if n = 0 then "" else ","
       in
-      match params with
+      match patts with 
       | [] -> ""
-      | h :: t ->
-        if str_contains h "md" then
-          delimeter n ^ "$md" ^ find_order t (n+1)
-        else if str_contains h "ms3" then
-          delimeter n ^ "$ms3" ^ find_order t (n+1)
-        else if str_contains h "vs2" then
-          delimeter n ^ "$vs2" ^ find_order t (n+1)
-        else if str_contains h "vs1" then
-          delimeter n ^ "$vs1" ^ find_order t (n+1)
-        else if str_contains h "ms1" then
-          delimeter n ^ "$ms1" ^ find_order t (n+1)
-        else if str_contains h "ms2" then
-          delimeter n ^ "$ms2" ^ find_order t (n+1)
-        else if str_contains h "rs1" then
-          delimeter n ^ "(${rs1})" ^ find_order t (n+1)
+      | h :: t -> 
+        if str_contains (string_of_mpat h) "reg_name" then
+          let reg_name = get_func_param (string_of_mpat h)  in
+          (match reg_name with
+          | "rs1" -> delimeter n ^ "(${" ^ reg_name ^ "})" ^ get_argstr t (n+1)
+          | _ -> delimeter n ^ "$" ^ reg_name ^  get_argstr t (n+1))
         else
-          find_order t n
+          get_argstr t n
     in
-    let order = find_order bidirect_right 0 in
-   
-    let header = "let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in {\n" in 
-    header ^ "class M" ^ inst_name ^ "<string opcodestr>\n : RVInst" ^ inst_name ^ "<" ^ outreg ^ inreg ^
-    "opcodestr,\n" ^ "\"" ^ order ^ "\">;\n}\n\n"
-  else
-    ""
+    get_argstr pats 0
+  | _ -> ""
 
-let instdef_string mapcl_string = 
-  if str_contains mapcl_string "_MM" then
-    let mm_regex = Str.regexp_string "_MM" in
-    let bidirec_regex = Str.regexp_string "<->" in
-    let carat_regex = Str.regexp_string "^" in
-    let leftp_regex = Str.regexp_string "(" in
-    let rightp_regex = Str.regexp_string ")" in
-    let commaspace_regex = Str.regexp_string ", " in
-    let whitespace_regex = Str.regexp_string " " in
-    let inst_name = List.hd (Str.split mm_regex mapcl_string) ^ "_MM"in
+let get_instr_argstr mpexp = 
+  match mpexp with
+  | MPat_pat mpat -> get_mpat_argstr mpat
+  | _ -> ""
 
-    let assembly_name = List.hd (Str.split carat_regex (List.nth (Str.split bidirec_regex mapcl_string) 1)) in
-    let assembly_name = Str.global_replace whitespace_regex "" assembly_name in 
+let matrix_instclass_string mpexp1 mpexp2 =
+  let inst_name = get_instr_name mpexp1 in
+  let outreg = "(outs " ^ get_instr_outreg mpexp2  ^ " ),\n" in
+  let inreg = "(ins " ^ get_instr_inregs mpexp2 ^ ")," in
+  let argstr = get_instr_argstr mpexp2 in
 
-    let rec find_sched_order assembly_string inst_name n =
+  let header = "\nlet hasSideEffects = 0, mayLoad = 0, mayStore = 0 in {\n" in 
+  header ^ "class M" ^ inst_name ^ "<string opcodestr>\n : RVInst" ^ inst_name ^ "<" ^ outreg ^ inreg ^
+  "opcodestr,\n" ^ "\"" ^ argstr ^ "\">;\n}\n\n"
+
+let instclass_string  (MPat_aux(mpexp1, _)) (MPat_aux(mpexp2, _))= 
+  let annot = get_mpexp_annot mpexp1 in
+  match annot with
+    | "MM" -> matrix_instclass_string mpexp1 mpexp2
+    | _ -> ""
+
+let rec get_mpat_mnemonic (MP_aux (mp_aux, _) as mpat) = 
+  match mp_aux with
+  | MP_string_append pats ->
+    let get_first_assembly_pat patts = 
+      match patts with 
+      | [] -> ""
+      | h :: t -> 
+        string_of_mpat h
+    in
+    get_first_assembly_pat pats
+  | _ -> ""
+
+let get_instr_mnemonic mpexp = 
+  match mpexp with
+  | MPat_pat mpat -> get_mpat_mnemonic mpat
+  | _ -> ""
+
+
+let rec get_mpat_sched_order (MP_aux (mp_aux, _) as mpat) inst_name = 
+  match mp_aux with
+  | MP_string_append pats ->
+    let rec get_sched_order patts inst_name n =
       let delimeter n =
         if n = 0 then "" else ","
       in
-      match assembly_string with 
+      match patts with 
       | [] -> ""
-      | h :: t ->
-        if str_contains h "reg_name" then
-          let reg_name = Str.global_replace rightp_regex "" (List.nth (Str.split leftp_regex h) 1) in
-          if str_contains reg_name "md" then
-            delimeter n ^ "Write" ^ inst_name  ^ (find_sched_order t inst_name (n+1))
-          else if str_contains reg_name "ms3" then
-            delimeter n ^ "Write" ^ inst_name  ^ (find_sched_order t inst_name (n+1))
-          else if str_contains reg_name "vs2" then
-            delimeter n ^ "Read" ^ inst_name  ^ (find_sched_order t inst_name (n+1))
-          else if str_contains reg_name "vs1" then
-            delimeter n ^ "Read" ^ inst_name  ^ (find_sched_order t inst_name (n+1))
-          else if str_contains reg_name "ms1" then
-            delimeter n ^ "Read" ^ inst_name  ^ (find_sched_order t inst_name (n+1))
-          else if str_contains reg_name "ms2" then
-            delimeter n ^ "Read" ^ inst_name  ^ (find_sched_order t inst_name (n+1))
-          else if str_contains reg_name "rs1" then
-            delimeter n ^ "Read" ^ inst_name  ^ (find_sched_order t inst_name (n+1))
-          else
-            find_sched_order t inst_name n
+      | h :: t -> 
+        if str_contains (string_of_mpat h) "reg_name" then
+          let reg_name = get_func_param (string_of_mpat h)  in
+          (match reg_name with
+          | "md" -> delimeter n ^ "Write" ^ inst_name ^ (get_sched_order t inst_name (n+1))
+          | "ms3" -> delimeter n ^ "Write"  ^ inst_name ^ (get_sched_order t inst_name (n+1))
+          | "ms2" -> delimeter n ^ "Read"  ^ inst_name ^ (get_sched_order t inst_name (n+1))
+          | "ms1" -> delimeter n ^ "Read"  ^ inst_name ^ (get_sched_order t inst_name (n+1))
+          | "rs1" -> delimeter n ^ "Read"  ^ inst_name ^ (get_sched_order t inst_name (n+1))
+          | _ -> "")
         else
-          find_sched_order t inst_name n
-
+          get_sched_order t inst_name n
     in
-   
-    let bidirect_right = (Str.split carat_regex (List.nth (Str.split bidirec_regex mapcl_string) 1)) in
-    let schedule_order = find_sched_order bidirect_right inst_name 0 in
+    get_sched_order pats inst_name 0
+  | _ -> ""
 
-    "def " ^ inst_name ^ " : M" ^ inst_name ^ "<" ^ assembly_name ^ ">,\n" ^
-    "Sched<[" ^ schedule_order ^ "]>;\n\n"
+let get_instr_sched_order mpexp inst_name = 
+  match mpexp with
+  | MPat_pat mpat -> get_mpat_sched_order mpat inst_name
+  | _ -> ""
 
-  else
-    ""
+let matrix_instdef_string mpexp1 mpexp2 =
+  let inst_name = get_instr_name mpexp1 in
+  let inst_mnemonic = get_instr_mnemonic mpexp2 in
+  let sched_order = get_instr_sched_order mpexp2 inst_name in
 
-let sail_to_td id clause outtype =
-  let mapcl_string = Pretty_print_sail.to_string(Pretty_print_sail.doc_mapcl clause) in
-  if string_of_id(id) = "encdec" then
-    if outtype = "formats" then
-      formats_string mapcl_string
-    else if outtype = "scheduler" then
-      scheduler_string mapcl_string
-    else if outtype = "uscheduler" then
-      u_scheduler_string mapcl_string
-    else
-      ""
-  else if string_of_id(id) = "assembly" then
-    if outtype = "instclass" then
-      instclass_string mapcl_string
-    else if outtype = "instdef" then
-      instdef_string mapcl_string
-    else
-      ""
-  else
-    ""
+  "def " ^ inst_name ^ " : M" ^ inst_name ^ "<" ^ inst_mnemonic ^ ">,\n" ^
+  "Sched<[" ^ sched_order ^"]>;\n\n"
+
+let instdef_string (MPat_aux(mpexp1, _)) (MPat_aux(mpexp2, _)) = 
+  let annot = get_mpexp_annot mpexp1 in
+  match annot with
+    | "MM" -> matrix_instdef_string mpexp1 mpexp2
+    | _ -> ""
+
+let sail_to_td id (MCL_aux(cl,_)) outtype =
+  match string_of_id(id) with
+    | "encdec" ->
+      (match cl with 
+      | MCL_bidir (mpexp1, mpexp2) ->
+        (match outtype with
+          | "formats" -> formats_string mpexp1 mpexp2
+          | "scheduler" -> scheduler_string mpexp1
+          | "uscheduler" ->  uscheduler_string mpexp1
+          | _ -> "")
+      | _ -> "")
+    | "assembly" ->
+      (match cl with 
+      | MCL_bidir (mpexp1, mpexp2) ->
+         (match outtype with
+           | "instclass" -> instclass_string mpexp1 mpexp2
+           | "instdef" -> instdef_string mpexp1 mpexp2
+           | _ -> "")
+      | _ -> "")
+    | _ -> ""
 
 let rec tablegen_mapcl id mapcls outtype  =
   match mapcls with
-  | [] -> 
-      ""
+  | [] -> ""
   | clause :: clauses -> sail_to_td id clause outtype ^ tablegen_mapcl id clauses outtype
 
 let rec tablegen_mapdef (MD_aux (MD_mapping (id, _, mapcls), _)) outtype =
@@ -412,15 +457,16 @@ let compile_ast env effect_info output_chan ast =
 
   let outtype = "uscheduler" in
   let uscheduler_tablegen = process_defs outtype ast.defs in
-  
+
   let scheduler = scheduler_tablegen ^ "\nmulticlass UnsupportedSched" ^ ext ^ " {\n" ^ 
                   "let Unsupported = true in {\n\n"  ^ uscheduler_tablegen ^ "}\n}" in
+
+  let outtype = "instdef" in
+  let instdef = process_defs outtype ast.defs  in
 
   let outtype = "instclass" in
   let instclass = process_defs outtype ast.defs  in
 
-  let outtype = "instdef" in
-  let instdef = process_defs outtype ast.defs  in
   
   let inst = "include \"RISCVInstrFormats" ^ ext ^ ".td\"" ^
              instclass ^ "\n///////Instructions//////////\n" ^ instdef in
@@ -440,5 +486,4 @@ let compile_ast env effect_info output_chan ast =
   let output_chan = open_out fname2 in
   Printf.fprintf output_chan "%s" scheduler;
   close_out output_chan;
-
-  print_endline(inst)
+  Pretty_print_sail.pp_ast stdout ast
