@@ -264,11 +264,11 @@ let rec tensorops_rgenircl rgenircl_string_list outtype=
             in
     
             if outtype = "norm" then   
-              "const " ^ in_type ^ "& input1" ^ further_input_string ^ ", const Scalar& alpha) {" ^ execute_function t outtype n
+              "const " ^ in_type ^ "& input1" ^ further_input_string ^ ") {" ^ execute_function t outtype n
             else if outtype = "_" then 
-              in_type ^ "& input1" ^ further_input_string ^ ", const Scalar& alpha) {" ^ execute_function t outtype n
+              in_type ^ "& input1" ^ further_input_string ^ ") {" ^ execute_function t outtype n
             else if outtype = "_out" then 
-              "const " ^ in_type ^ "& input1" ^ further_input_string ^ ", const Scalar& alpha," ^ find_return_type t ^ "& result) {" ^ execute_function t outtype n
+              "const " ^ in_type ^ "& input1" ^ further_input_string ^ "," ^ find_return_type t ^ "& result) {" ^ execute_function t outtype n
             else
               ""
           else
@@ -344,11 +344,11 @@ let rec nfunctions_rgenircl rgenircl_string_list outtype=
           let in_type = Str.replace_first whitespace_regex "" (List.hd (String.split_on_char '(' (List.nth in_type 1))) in
           let further_input_string, _ = further_inputs t 2 in
           if outtype = "norm" then 
-            in_type ^ " self" ^ further_input_string ^ ", *, Scalar alpha=1) -> " ^ nfunctions_inner_rgenircl t outtype instr_name
+            in_type ^ " self" ^ further_input_string ^ ") -> " ^ nfunctions_inner_rgenircl t outtype instr_name
           else if outtype = "_" then 
-            in_type ^ "(a!) self" ^ further_input_string ^ ", *, Scalar alpha=1) -> " ^ nfunctions_inner_rgenircl t outtype instr_name
+            in_type ^ "(a!) self" ^ further_input_string ^ ") -> " ^ nfunctions_inner_rgenircl t outtype instr_name
           else if outtype = "_out" then 
-            in_type ^ " self" ^ further_input_string ^ ", *, Scalar alpha=1," ^ find_return_type t ^ "(a!) out) -> " ^ nfunctions_inner_rgenircl t outtype instr_name 
+            in_type ^ " self" ^ further_input_string ^ ", *, " ^ find_return_type t ^ "(a!) out) -> " ^ nfunctions_inner_rgenircl t outtype instr_name 
           else
            "" ^ nfunctions_inner_rgenircl t outtype instr_name
         else if str_contains h "output" then
@@ -357,7 +357,7 @@ let rec nfunctions_rgenircl rgenircl_string_list outtype=
           if outtype = "norm" then
             out_type ^ "\n  variants: function\n  dispatch:\n    CPU: " ^ !instr_name ^  nfunctions_inner_rgenircl t outtype instr_name
           else if outtype = "_" then
-            out_type ^ "(a!)\n  variants: method\n  dispatch:\n    CPU: " ^ !instr_name ^ outtype ^ nfunctions_inner_rgenircl t outtype instr_name
+            out_type ^ "(a!)\n  variants: function\n  dispatch:\n    CPU: " ^ !instr_name ^ outtype ^ nfunctions_inner_rgenircl t outtype instr_name
           else if outtype = "_out" then
             out_type ^ "(a!)\n  variants: function\n  dispatch:\n    CPU: " ^ !instr_name ^ outtype ^ nfunctions_inner_rgenircl t outtype instr_name
           else
@@ -431,5 +431,7 @@ let compile_ast env effect_info output_chan ast opt_pytorch opt_tosa opt_torch_r
   Printf.fprintf output_chan "%s" tosa_nfunctions;
   close_out output_chan;
 
-  print_endline(tosa_nfunctions);
-  print_endline(tosa_tensorops)
+Pretty_print_sail.pp_ast stdout ast
+
+ (* print_endline(tosa_nfunctions);*)
+ (* print_endline(tosa_tensorops)*)
