@@ -5,6 +5,9 @@ The Sail ISA specification language
 
 [![Build and Test](https://github.com/rems-project/sail/actions/workflows/build.yml/badge.svg)](https://github.com/rems-project/sail/actions/workflows/build.yml)
 
+RGen
+===================================
+
 Overview
 --------
 
@@ -127,10 +130,12 @@ some Sail specifications and related tools.
 
 The support library for Coq models is in [a separate repository](https://github.com/rems-project/coq-sail) to help our package management.
 
+RGen is an extension to the Sail language (<http://www.cl.cam.ac.uk/~pes20/sail/>.). This repository is to be used in conjunction with <https://github.com/derekztu22/sail-riscv>. It adds functionality to Sail to allow it to generate artifacts for LLVM, QEMU, and PyTorch.
 
 Installation
 ------------
 
+This repository follows the same installation process as the Sail repository (<https://github.com/rems-project/sail>).
 See [INSTALL.md](INSTALL.md) for how
 to install Sail using opam.
 
@@ -413,6 +418,3 @@ opinions, and/or findings contained in these articles OR presentations are
 those of the author(s)/presenter(s) and should not be interpreted as
 representing the official views or policies of the Department of
 Defense or the U.S. Government.
-
-
-
