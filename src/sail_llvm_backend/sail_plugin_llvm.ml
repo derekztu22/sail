@@ -67,12 +67,11 @@
 
 open Libsail
 
-let opt_instr : bool ref = ref true
 
 let llvm_options = [
-  ( "-instr",
-    Arg.Set opt_instr,
-    "output torch_llvm files");
+  ( "-ext",
+    Arg.String (fun ext -> Llvm_backend.opt_ext := ext),
+    "extension name");
 ]
  
 let llvm_target _ out_file ast effect_info _ =
