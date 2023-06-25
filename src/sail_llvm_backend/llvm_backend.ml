@@ -81,6 +81,95 @@ open Anf
 
 module Big_int = Nat_big_num
 
+let opt_ext = ref "MM"
+
+
+let print_matrix_register_files output_chan = 
+  let fname0 = "generated_definitions/llvm/RISCVDisassembler.cpp" in
+  
+  let disassembler = "static DecodeStatus DecodeMRRegisterClass(MCInst &Inst, uint64_t RegNo, uint64_t Address, const MCDisassembler *Decoder) {
+  if (RegNo >= 32)
+    return MCDisassembler::Fail;
+  MCRegister Reg = RISCV::M0 + RegNo;
+  Inst.addOperand(MCOperand::createReg(Reg));
+  return MCDisassembler::Success;
+}
+" in
+
+  let output_chan = open_out fname0 in
+  Printf.fprintf output_chan "%s" disassembler;
+  close_out output_chan;
+
+  let fname1 = "generated_definitions/llvm/RISCVRegisterInfo.td" in
+  let matrix_registers = "
+// Matrix registers
+let RegAltNameIndices = [ABIRegAltName] in {
+  foreach Index = 0-31 in {
+   def M#Index : RISCVReg<Index, \"m\"#Index, [\"m\"#Index]>, DwarfRegNum<[!add(Index, 128)]>;
+ }
+
+  let isConstant = true in
+ def ML     : RISCVReg<0, \"ml\", [\"ml\"]>;
+}
+
+def MR : RegisterClass<\"RISCV\", [XLenVT], 32, (add
+    (sequence \"M%u\", 8, 31),
+    (sequence \"M%u\", 0, 7)
+)>;
+" in
+
+  let output_chan = open_out fname1 in
+  Printf.fprintf output_chan "%s" matrix_registers;
+  close_out output_chan;
+
+  "MM"
+
+let print_includes output_chan ext = 
+  let fname0 = "generated_definitions/llvm/RISCV.td" in
+  
+  let riscvtd = "
+def FeatureStdExt" ^ ext ^
+"\n    : SubtargetFeature<\"" ^ String.lowercase_ascii ext ^ "\", \"HasStdExt" ^ ext ^ "\", \"true\",\n \"'" ^ext ^"'\">;" ^
+
+"\ndef HasStdExt" ^ ext ^ " : Predicate<\"Subtarget->hasStdExt" ^ ext ^"()\">,\nAssemblerPredicate<(all_of FeatureStdExt" ^ ext ^ "),\n\"'" ^ ext ^"'\">;"
+in
+
+  let output_chan = open_out fname0 in
+  Printf.fprintf output_chan "%s" riscvtd;
+  close_out output_chan;
+
+  let fname1 = "generated_definitions/llvm/RISCVInstrInfo.td" in
+  let instrinfotd = "include \"RISCVInstrInfo" ^ ext ^ ".td\"" in
+  let output_chan = open_out fname1 in
+  Printf.fprintf output_chan "%s" instrinfotd;
+  close_out output_chan;
+
+  let fname2 = "generated_definitions/llvm/RISCVSchedRocket.td" in
+  let schedrocket0 = "HasStdExt" ^ ext ^ "\n\n"in
+  let schedrocket1 = "defm: UnsupportedSched" ^ ext ^ ";" in
+  let output_chan = open_out fname2 in
+  Printf.fprintf output_chan "%s" (schedrocket0 ^ schedrocket1);
+  close_out output_chan;
+
+  let fname3 = "generated_definitions/llvm/RISCVSchedSiFive7.td" in
+  let sifive0 = "HasStdExt" ^ ext ^ "\n\n"in
+  let sifive1 = "defm: UnsupportedSched" ^ ext ^ ";" in
+  let output_chan = open_out fname3 in
+  Printf.fprintf output_chan "%s" (sifive0 ^ sifive1);
+  close_out output_chan;
+
+  let fname4 = "generated_definitions/llvm/RISCVSchedule.td" in
+  let scheduletd = "include \"RISCVSchedule" ^ ext ^ ".td\"" in
+  let output_chan = open_out fname4 in
+  Printf.fprintf output_chan "%s" scheduletd;
+  close_out output_chan;
+
+  let fname5 = "generated_definitions/llvm/RISCVSubtarget.h" in
+  let subtarget0 = "bool HasStdExt" ^ ext ^ "= false;\n\n" in
+  let subtarget1 = "bool HasStdExt" ^ ext ^ "() const = { return HasStdExt" ^ ext ^ "; }" in
+  let output_chan = open_out fname5 in
+  Printf.fprintf output_chan "%s" (subtarget0 ^ subtarget1);
+  close_out output_chan
 
 let sizeof_reg reg =
   let whitespace_regex = Str.regexp_string " " in
@@ -447,8 +536,6 @@ let compile_ast env effect_info output_chan ast =
        td ^  process_defs outtype defs
   in
 
-  let ext = "MM" in
-
   let outtype = "formats" in
   let formats_tablegen = process_defs outtype ast.defs in
 
@@ -458,7 +545,7 @@ let compile_ast env effect_info output_chan ast =
   let outtype = "uscheduler" in
   let uscheduler_tablegen = process_defs outtype ast.defs in
 
-  let scheduler = scheduler_tablegen ^ "\nmulticlass UnsupportedSched" ^ ext ^ " {\n" ^ 
+  let scheduler = scheduler_tablegen ^ "\nmulticlass UnsupportedSched" ^ !opt_ext ^ " {\n" ^ 
                   "let Unsupported = true in {\n\n"  ^ uscheduler_tablegen ^ "}\n}" in
 
   let outtype = "instdef" in
@@ -466,14 +553,24 @@ let compile_ast env effect_info output_chan ast =
 
   let outtype = "instclass" in
   let instclass = process_defs outtype ast.defs  in
-
   
-  let inst = "include \"RISCVInstrFormats" ^ ext ^ ".td\"" ^
+  let inst = "include \"RISCVInstrFormats" ^ !opt_ext ^ ".td\"" ^
              instclass ^ "\n///////Instructions//////////\n" ^ instdef in
 
-  let fname0 = "generated_definitions/llvm/RISCVInstrFormats" ^ ext ^ ".td" in
-  let fname1 = "generated_definitions/llvm/RISCVInstrInfo" ^ ext ^ ".td" in
-  let fname2 = "generated_definitions/llvm/RISCVSchedule" ^ ext ^ ".td" in
+  let fname0 = "generated_definitions/llvm/RISCVInstrFormats" ^ !opt_ext ^ ".td" in
+  let fname1 = "generated_definitions/llvm/RISCVInstrInfo" ^ !opt_ext ^ ".td" in
+  let fname2 = "generated_definitions/llvm/RISCVSchedule" ^ !opt_ext ^ ".td" in
+
+
+  let ext_extras output_chan opt_ext =
+    match opt_ext with
+    | "MM" -> print_matrix_register_files output_chan
+    | _ -> "" 
+  in
+
+  let _ = ext_extras output_chan !opt_ext in
+
+  print_includes output_chan !opt_ext;
 
   let output_chan = open_out fname0 in
   Printf.fprintf output_chan "%s" formats_tablegen;
