@@ -83,7 +83,6 @@ module Big_int = Nat_big_num
 
 let opt_ext = ref "MM"
 
-
 let print_matrix_register_files output_chan = 
   let fname0 = "generated_definitions/llvm/RISCVDisassembler.cpp" in
   
@@ -300,12 +299,13 @@ let matrix_format_string mpexp1 mpexp2 =
   let bit_body, _ = create_bit_format mpexp2 31 in 
   head ^ inst_name ^ tdparams ^ class_def ^ params ^ bit_body ^ end_parenth
   
-
 let formats_string (MPat_aux(mpexp1, _)) (MPat_aux(mpexp2, _)) = 
   let annot = get_mpexp_annot mpexp1 in
-  match annot with
-    | "MM" -> matrix_format_string mpexp1 mpexp2
-    | _ -> ""
+
+  if annot = !opt_ext then
+    matrix_format_string mpexp1 mpexp2
+  else
+    ""
 
 let matrix_scheduler_string mpexp1 = 
   let inst_name = get_instr_name mpexp1 in
@@ -314,10 +314,11 @@ let matrix_scheduler_string mpexp1 =
   
 let scheduler_string  (MPat_aux(mpexp1, _)) = 
   let annot = get_mpexp_annot mpexp1 in
-  match annot with
-    | "MM" -> matrix_scheduler_string mpexp1
-    | _ -> ""
 
+  if annot = !opt_ext then
+    matrix_scheduler_string mpexp1
+  else
+    ""
 let matrix_uscheduler_string mpexp1 = 
   let inst_name = get_instr_name mpexp1 in
   "def : ReadAdvance<Read" ^ inst_name ^ ", 0>;\n" ^
@@ -325,15 +326,16 @@ let matrix_uscheduler_string mpexp1 =
 
 let uscheduler_string  (MPat_aux(mpexp1, _)) = 
   let annot = get_mpexp_annot mpexp1 in
-  match annot with
-    | "MM" -> matrix_uscheduler_string mpexp1
-    | _ -> ""
 
+
+  if annot = !opt_ext then
+    matrix_uscheduler_string mpexp1
+  else
+    ""
 let get_func_param func = 
   let lparen_regex = Str.regexp_string "(" in
   let rparen_regex = Str.regexp_string ")" in
   List.hd (Str.split rparen_regex (List.nth (Str.split lparen_regex func) 1))
-
 
 let get_mpat_outreg (MP_aux (mp_aux, _) as mpat) =
   match mp_aux with
@@ -423,12 +425,13 @@ let matrix_instclass_string mpexp1 mpexp2 =
   header ^ "class M" ^ inst_name ^ "<string opcodestr>\n : RVInst" ^ inst_name ^ "<" ^ outreg ^ inreg ^
   "opcodestr,\n" ^ "\"" ^ argstr ^ "\">;\n}\n\n"
 
-let instclass_string  (MPat_aux(mpexp1, _)) (MPat_aux(mpexp2, _))= 
+let instclass_string  (MPat_aux(mpexp1, _)) (MPat_aux(mpexp2, _)) =
   let annot = get_mpexp_annot mpexp1 in
-  match annot with
-    | "MM" -> matrix_instclass_string mpexp1 mpexp2
-    | _ -> ""
 
+  if annot = !opt_ext then
+    matrix_instclass_string mpexp1 mpexp2
+  else
+    ""
 let rec get_mpat_mnemonic (MP_aux (mp_aux, _) as mpat) = 
   match mp_aux with
   | MP_string_append pats ->
@@ -487,10 +490,11 @@ let matrix_instdef_string mpexp1 mpexp2 =
 
 let instdef_string (MPat_aux(mpexp1, _)) (MPat_aux(mpexp2, _)) = 
   let annot = get_mpexp_annot mpexp1 in
-  match annot with
-    | "MM" -> matrix_instdef_string mpexp1 mpexp2
-    | _ -> ""
 
+  if annot = !opt_ext then
+    matrix_instdef_string mpexp1 mpexp2
+  else
+    ""
 let sail_to_td id (MCL_aux(cl,_)) outtype =
   match string_of_id(id) with
     | "encdec" ->
