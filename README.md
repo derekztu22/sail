@@ -4,7 +4,7 @@ RGen
 Overview
 ========
 
-RGen is an extension to the Sail language (<http://www.cl.cam.ac.uk/~pes20/sail/>.). This repository is to be used in conjunction with <https://github.com/derekztu22/sail-riscv>. It adds functionality to Sail to allow it to generate artifacts for LLVM, QEMU, and PyTorch.
+RGen is an extension to the Sail language (<http://www.cl.cam.ac.uk/~pes20/sail/>.). This repository is to be used in conjunction with <https://github.com/derekztu22/sail-riscv>. It adds functionality to Sail to allow it to generate artifacts for LLVM, QEMU, and PyTorch. Please make sure you are using the rgen branch when using RGen
 
 
 Installation
