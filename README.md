@@ -12,7 +12,7 @@ Installation
 
 This repository follows the same installation process as the Sail repository (<https://github.com/rems-project/sail>).
 See [INSTALL.md](INSTALL.md) for how
-to install Sail using opam.
+to install Sail using opam. Please make sure you are following the instructions to install the development version of Sail.
 
 
 Licensing
