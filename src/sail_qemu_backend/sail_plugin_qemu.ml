@@ -67,12 +67,10 @@
 
 open Libsail
 
-let opt_instr : bool ref = ref true
-
 let qemu_options = [
-  ( "-instr",
-    Arg.Set opt_instr,
-    "output torch_qemu files");
+  ( "-ext",
+    Arg.String (fun ext -> Qemu_backend.opt_ext := ext),
+    "extension name");
 ]
  
 let qemu_target _ out_file ast effect_info _ =

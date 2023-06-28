@@ -81,11 +81,86 @@ open Anf
 
 module Big_int = Nat_big_num
 
+let opt_ext = ref "MM"
+
+let extra_trans_header ext = 
+  match ext with
+  | "MM" -> "#include \"internals.h\"
+static uint32_t mregxy_ofs(DisasContext *s, int reg)
+{
+    int32_t reg_length = 16;
+    int32_t elem_size_bytes = 4;
+
+    return offsetof(CPURISCVState, mregxy) + reg*reg_length*elem_size_bytes;
+}\n
+static uint32_t mregz_ofs(DisasContext *s, int reg)
+{
+    return offsetof(CPURISCVState, mregz) + reg;
+}\n\n"
+  | _ -> ""
+
+
+let extra_helper_header ext = 
+  match ext with
+  | "MM" -> "#include \"qemu/osdep.h\"
+#include \"qemu/host-utils.h\"
+#include \"qemu/bitops.h\"
+#include \"cpu.h\"
+#include \"exec/memop.h\"
+#include \"exec/exec-all.h\"
+#include \"exec/helper-proto.h\"
+#include \"fpu/softfloat.h\"
+#include \"tcg/tcg-gvec-desc.h\"
+#include \"internals.h\"
+#include <math.h>
+static inline target_ulong adjust_addrm(CPURISCVState *env, target_ulong addr)
+{
+    return (addr & env->cur_pmmask) | env->cur_pmbase;
+}
+#define RVMMCALL(macro, ...)  macro(__VA_ARGS__)\n"
+  | _ -> ""
+
 let str_contains s1 s2 =
     let re = Str.regexp_string s2
     in
         try ignore (Str.search_forward re s1 0); true
         with Not_found -> false
+
+let rec get_mpat_annot (MP_aux(mp_aux, _) as mpat) =
+  let underscore_regex = Str.regexp_string "_" in
+  match mp_aux with
+  | MP_app (id, pats) ->
+    if str_contains (string_of_id id) "_" then
+      List.nth (Str.split underscore_regex (string_of_id id)) 1
+    else
+      ""
+  | _ -> ""
+
+let get_mpexp_annot mpexp =
+  match mpexp with
+  | MPat_pat mpat -> get_mpat_annot mpat
+  | _ -> ""
+
+let rec get_mpat_name (MP_aux(mp_aux, _) as mpat) =
+  match mp_aux with
+  | MP_app (id, pats) -> string_of_id id
+  | _ -> ""
+
+let get_instr_name mpexp =
+  match mpexp with
+  | MPat_pat mpat -> get_mpat_name mpat
+  | _ -> ""
+
+let get_register_string mpat_string =
+  let colon_regex = Str.regexp_string " : " in
+  let lparen_regex = Str.regexp_string "(" in
+  let reg_name = List.hd (Str.split colon_regex mpat_string) in
+  Str.global_replace lparen_regex "" reg_name
+
+let get_bit (L_aux(l, _)) =
+  utf8string (match l with
+  | L_bin n -> n
+  | _ -> "")
 
 let get_bit_type inst_name =
   if str_contains inst_name "64" then
@@ -124,7 +199,7 @@ let is_float inst_name =
     false
 
 let qemu_execute_string_parse funcl_string_list =
-    let mm_regex = Str.regexp_string "_MM" in
+    let mm_regex = Str.regexp_string ("_" ^ !opt_ext) in
     let leftp_regex = Str.regexp_string "(" in
     let rightp_regex = Str.regexp_string ")" in
     let whitespace_regex = Str.regexp_string " " in
@@ -135,7 +210,7 @@ let qemu_execute_string_parse funcl_string_list =
       | [] -> "", ""
       | h :: t ->
         if str_contains h "execute" then
-          let inst_name = String.lowercase_ascii(List.nth (String.split_on_char ' ' (List.hd (Str.split mm_regex h) ^ "_MM")) 1) in
+          let inst_name = String.lowercase_ascii(List.nth (String.split_on_char ' ' (List.hd (Str.split mm_regex h) ^ ("_" ^ !opt_ext))) 1) in
           let params = List.nth (Str.split mm_regex h) 1 in
           let params = List.hd (String.split_on_char '=' params) in
           let params = Str.global_replace leftp_regex "" params in
@@ -616,7 +691,7 @@ let qemu_execute_string_parse funcl_string_list =
               else
                 setup_fn_params inst_name t
           in
-          "#define GEN_" ^ String.uppercase(inst_name) ^ "(NAME) \\\n" ^
+          "#define GEN_" ^ String.uppercase_ascii(inst_name) ^ "(NAME) \\\n" ^
           "void HELPER(NAME)(" ^ setup_fn_params inst_name params ^ "{\\\n"
 
         else
@@ -669,7 +744,7 @@ let qemu_execute_string_parse funcl_string_list =
     fn_setup_def ^ do_x_byte ^ rvmmcall_def ^ do_x_x ^ gen_def ^ gen
 
 let qemu_trans_string funcl_string_list = 
-    let mm_regex = Str.regexp_string "_MM" in
+    let mm_regex = Str.regexp_string ("_" ^ !opt_ext) in
     let leftp_regex = Str.regexp_string "(" in
     let rightp_regex = Str.regexp_string ")" in
     let whitespace_regex = Str.regexp_string " " in
@@ -679,7 +754,7 @@ let qemu_trans_string funcl_string_list =
       | [] -> "TCGv_env);"
       | h:: t->
         if str_contains h "execute" then
-          let inst_name = String.lowercase_ascii(List.nth (String.split_on_char ' ' (List.hd (Str.split mm_regex h) ^ "_MM")) 1) in
+          let inst_name = String.lowercase_ascii(List.nth (String.split_on_char ' ' (List.hd (Str.split mm_regex h) ^ ("_" ^ !opt_ext))) 1) in
           let params = List.nth (Str.split mm_regex h) 1 in
           let params = List.hd (String.split_on_char '=' params) in
           let params = Str.global_replace leftp_regex "" params in
@@ -721,7 +796,7 @@ let qemu_trans_string funcl_string_list =
       | [] -> ""
       | h :: t ->
         if str_contains h "execute" then
-          let inst_name = String.lowercase_ascii(List.nth (String.split_on_char ' ' (List.hd (Str.split mm_regex h) ^ "_MM")) 1) in
+          let inst_name = String.lowercase_ascii(List.nth (String.split_on_char ' ' (List.hd (Str.split mm_regex h) ^ ("_" ^ !opt_ext))) 1) in
           let head = "static inline bool do_" in
           let params_start = "(DisasContext *ctx, arg_" in
           let pointer_a = " *a" in
@@ -853,7 +928,7 @@ let qemu_trans_string funcl_string_list =
       | [] -> "\n"
       | h :: t ->
         if str_contains h "execute" then
-          let inst_name = String.lowercase_ascii(List.nth (String.split_on_char ' ' (List.hd (Str.split mm_regex h) ^ "_MM")) 1) in
+          let inst_name = String.lowercase_ascii(List.nth (String.split_on_char ' ' (List.hd (Str.split mm_regex h) ^ ("_" ^ !opt_ext))) 1) in
           let head = "static bool do_" in
           let params_start = "_gvec(DisasContext *ctx, arg_" in
           let pointer_a = " *a" in
@@ -875,7 +950,7 @@ let qemu_trans_string funcl_string_list =
       | [] -> "\n"
       | h :: t ->
         if str_contains h "execute" then
-          let inst_name = String.lowercase_ascii(List.nth (String.split_on_char ' ' (List.hd (Str.split mm_regex h) ^ "_MM")) 1) in
+          let inst_name = String.lowercase_ascii(List.nth (String.split_on_char ' ' (List.hd (Str.split mm_regex h) ^ ("_" ^ !opt_ext))) 1) in
 
           let upper_name = String.uppercase_ascii(inst_name) in
           let define_head = "#define GEN_" in
@@ -905,44 +980,50 @@ let qemu_trans_string funcl_string_list =
 
     gen_helper ^ do_x  ^ do_x_gvec_def ^ do_gen_x_def
 
-
 let qemu_execute_string funcl_string = 
-  if str_contains funcl_string "_MM" then
+  if str_contains funcl_string !opt_ext then
     let funcl_string_list = String.split_on_char '\n' funcl_string in
     qemu_execute_string_parse funcl_string_list
   else
     ""
-
-let qemu_decode_string mapcl_string = 
-  if str_contains mapcl_string "_MM" then
-    let mm_regex = Str.regexp_string "_MM" in
-    let bidirec_regex = Str.regexp_string "<->" in
-    let alias_regex = Str.regexp_string "@" in
-    let leftp_regex = Str.regexp_string "(" in
-    let rightp_regex = Str.regexp_string ")" in
-    let commaspace_regex = Str.regexp_string ", " in
-
-    let inst_name = String.lowercase_ascii(List.hd (Str.split mm_regex mapcl_string) ^ "_MM") in
-
-    let bit_defs = List.nth (Str.split bidirec_regex mapcl_string) 1 in
-    let split_bit_defs = Str.split alias_regex bit_defs in
-
-    let rec bit_matching split_bit_defs = 
-      let whitespace_regex = Str.regexp_string " " in
-      match split_bit_defs with
-      | [] -> " "
+let rec get_mpat_decode_format (MP_aux (mp_aux, _) as mpat)  =
+  match mp_aux with
+  | MP_lit lit -> Pretty_print_sail.to_string(get_bit lit)
+  | MP_vector_concat pats ->
+    let rec create_decode_body patts =
+      match patts with
+      | [] -> ""
       | h :: t ->
-        if str_contains h "0b" then
-          let bits = Str.string_after h 3 in
-          " " ^ bits ^ bit_matching t
-
-        else if str_contains h "bitvector" then
-          " ....." ^ bit_matching t 
-        else
-          bit_matching t
+          let bit_def0 = " " ^ (get_mpat_decode_format h) in
+          let bit_def1 = create_decode_body t in
+          bit_def0 ^ bit_def1
     in
+    create_decode_body pats
+   | _ -> " ....."
 
-    let params = List.nth (Str.split mm_regex  (List.hd (Str.split bidirec_regex mapcl_string))) 1 in
+let create_decode_body mpexp =
+  match mpexp with
+  | MPat_pat mpat -> get_mpat_decode_format mpat
+  | _ -> ""
+
+let rec get_mpat_params (MP_aux(mp_aux, _) as mpat) =
+  let commaspace_regex = Str.regexp_string ", " in
+  match mp_aux with
+  | MP_app (id, pats) ->
+      Pretty_print_sail.to_string(separate_map (comma ^^ space) Pretty_print_sail.doc_mpat pats)
+  | _ -> ""
+
+let get_instr_params mpexp =
+  match mpexp with
+  | MPat_pat mpat -> get_mpat_params mpat
+  | _ -> ""
+
+let qemu_decode_string (MPat_aux(mpexp1, _)) (MPat_aux(mpexp2, _)) =
+  let annot = get_mpexp_annot mpexp1 in
+  if annot = !opt_ext then
+    let inst_name = String.lowercase_ascii ((get_instr_name mpexp1) ^ ("_" ^ !opt_ext)) in
+
+    let params = get_instr_params mpexp1 in
     let inst_structure params =
       if str_contains params "vs2, vs1, md" then
         "@r\n"
@@ -964,49 +1045,49 @@ let qemu_decode_string mapcl_string =
         ""
     in
 
-    let bit_body = bit_matching split_bit_defs in
+    let bit_body = create_decode_body mpexp2 in
     inst_name ^ "    " ^ bit_body ^ (inst_structure params)
   else
     ""
-let qemu_thelper_string mapcl_string = 
-  if str_contains mapcl_string "_MM" then
-    let mm_regex = Str.regexp_string "_MM" in
-    let bidirec_regex = Str.regexp_string "<->" in
-    let alias_regex = Str.regexp_string "@" in
-    let leftp_regex = Str.regexp_string "(" in
-    let rightp_regex = Str.regexp_string ")" in
-    let commaspace_regex = Str.regexp_string ", " in
 
-    let inst_name = String.lowercase_ascii(List.hd (Str.split mm_regex mapcl_string) ^ "_mm_w") in
-
-    let bit_defs = List.nth (Str.split bidirec_regex mapcl_string) 1 in
-    let split_bit_defs = Str.split alias_regex bit_defs in
-
-    let rec bit_matching split_bit_defs n = 
-      let whitespace_regex = Str.regexp_string " " in
-      match split_bit_defs with
-      | [] -> ", env)", n+1
+let rec get_mpat_bitvector_format (MP_aux (mp_aux, _) as mpat)  num =
+  match mp_aux with
+  | MP_vector_concat pats ->
+    let rec create_bitvector_body patts num =
+      match patts with
+      | [] -> ", env)", num+1
       | h :: t ->
-        if str_contains h "bitvector" then
-          if str_contains h "rs1" then
-            let var, new_n =  bit_matching t (n + 1) in
-            ", i64" ^ var, new_n
-          else
-            let var, new_n =  bit_matching t (n + 1) in
-            ", ptr" ^ var, new_n 
-        else
-          bit_matching t n
+          let bitvector_def0, new_num = get_mpat_bitvector_format h num in
+          let bitvector_def1, new_num = create_bitvector_body t new_num in
+          bitvector_def0 ^ bitvector_def1, new_num
     in
+    create_bitvector_body pats num
+  | MP_lit lit -> "", num
+  | _ ->
+     let reg_name = get_register_string (string_of_mpat mpat) in
+     if str_contains reg_name "rs1" then
+       ", i64", num + 1
+     else
+       ", ptr", num + 1
 
-    let helper_body, n = bit_matching split_bit_defs 0 in
+let create_helper_body mpexp num =
+  match mpexp with
+  | MPat_pat mpat -> get_mpat_bitvector_format mpat num
+  | _ -> "", 0
+
+let qemu_thelper_string (MPat_aux(mpexp1, _)) (MPat_aux(mpexp2, _)) = 
+  let annot = get_mpexp_annot mpexp1 in
+  if annot = !opt_ext then
+    let inst_name = String.lowercase_ascii (get_instr_name mpexp1 ^ "_" ^ !opt_ext ^ "_w") in
+    let helper_body, n = create_helper_body mpexp2 0 in
     "DEF_HELPER_" ^ string_of_int(n) ^ "(" ^ inst_name ^ ", void" ^ helper_body ^ "\n"
   else
     ""
 
 let sail_to_qemu_execute clause outtype =
   let funcl_string = Pretty_print_sail.to_string(Pretty_print_sail.doc_funcl clause) in
-  if (str_contains funcl_string "execute") && (str_contains funcl_string "_MM") then
-    if outtype = "mm_helper" then
+  if (str_contains funcl_string "execute") && (str_contains funcl_string !opt_ext) then
+    if outtype = "helper" then
       qemu_execute_string funcl_string   
     else if outtype = "trans" then
       let funcl_string_list = String.split_on_char '\n' funcl_string in
@@ -1016,17 +1097,18 @@ let sail_to_qemu_execute clause outtype =
   else
     "" 
 
-let sail_to_qemu_mapping id clause outtype = 
-  let mapcl_string = Pretty_print_sail.to_string(Pretty_print_sail.doc_mapcl clause) in
-  if string_of_id(id) = "encdec" then
-    if outtype = "decode" then
-      qemu_decode_string mapcl_string 
-    else if outtype = "thelper" then
-      qemu_thelper_string mapcl_string 
-    else
-      ""
-  else
-    "" 
+
+let sail_to_qemu_mapping id (MCL_aux(cl,_)) outtype = 
+  match string_of_id(id) with
+    | "encdec" ->
+      (match cl with
+       | MCL_bidir(mpexp1, mpexp2) ->
+        (match outtype with
+         | "decode" -> qemu_decode_string mpexp1 mpexp2
+         | "thelper" -> qemu_thelper_string mpexp1 mpexp2
+         | _ -> "")
+       | _ -> "")
+    | _ -> ""
 
 let rec tablegen_funcl funcls outtype =
   match funcls with
@@ -1065,7 +1147,7 @@ let compile_ast env effect_info output_chan ast =
   let rec process_defs outtype = function
     | [] -> ""
     | def :: defs ->
-       if outtype = "mm_helper" || outtype = "trans" then
+       if outtype = "helper" || outtype = "trans" then
          let td  =  td_fun_def def outtype in
          td ^  process_defs outtype defs
        else if outtype = "decode" || outtype = "thelper" then
@@ -1076,44 +1158,14 @@ let compile_ast env effect_info output_chan ast =
   in
 
   (* FUNCTION BASED*)
-  let ext = "MM" in
+  let ext = !opt_ext in
   let outtype = "trans" in
-  let trans_header = "#include \"internals.h\"
-static uint32_t mregxy_ofs(DisasContext *s, int reg)
-{
-    int32_t reg_length = 16;
-    int32_t elem_size_bytes = 4;
-
-    return offsetof(CPURISCVState, mregxy) + reg*reg_length*elem_size_bytes;
-}\n
-static uint32_t mregz_ofs(DisasContext *s, int reg)
-{
-    return offsetof(CPURISCVState, mregz) + reg;
-}\n\n" in
-  let qemu_trans = trans_header ^ process_defs outtype ast.defs in
+  let qemu_trans = extra_trans_header ext ^ process_defs outtype ast.defs in
 
 
   (* FUNCTION BASED*)
-  let outtype = "mm_helper" in
-  let mm_header ="#include \"qemu/osdep.h\"
-#include \"qemu/host-utils.h\"
-#include \"qemu/bitops.h\"
-#include \"cpu.h\"
-#include \"exec/memop.h\"
-#include \"exec/exec-all.h\"
-#include \"exec/helper-proto.h\"
-#include \"fpu/softfloat.h\"
-#include \"tcg/tcg-gvec-desc.h\"
-#include \"internals.h\"
-#include <math.h>
-static inline target_ulong adjust_addrm(CPURISCVState *env, target_ulong addr)
-{
-    return (addr & env->cur_pmmask) | env->cur_pmbase;
-}
-#define RVMMCALL(macro, ...)  macro(__VA_ARGS__)\n" in
-
-  let qemu_mmhelper = mm_header ^ process_defs outtype ast.defs in
-
+  let outtype = "helper" in
+  let qemu_mmhelper = extra_helper_header ext ^ process_defs outtype ast.defs in
 
   (* MAPPING BASED*)
   let outtype = "thelper" in
@@ -1122,12 +1174,10 @@ static inline target_ulong adjust_addrm(CPURISCVState *env, target_ulong addr)
   let outtype = "decode" in
   let qemu_decode = process_defs outtype ast.defs in
 
-
   let fname0 = "generated_definitions/qemu/trans_rvmm.c.inc" in
   let fname1 = "generated_definitions/qemu/matrix_helper.c" in
   let fname2 = "generated_definitions/qemu/helper.h" in
   let fname3 = "generated_definitions/qemu/insn32.decode" in
-
 
   let output_chan = open_out fname0 in
   Printf.fprintf output_chan "%s" qemu_trans;
@@ -1146,7 +1196,3 @@ static inline target_ulong adjust_addrm(CPURISCVState *env, target_ulong addr)
   close_out output_chan;
 
   Pretty_print_sail.pp_ast stdout ast;
-  (*print_endline(qemu_trans);
-  print_endline(qemu_mmhelper);
-  print_endline(qemu_thelper);
-  print_endline(qemu_decode)*)
