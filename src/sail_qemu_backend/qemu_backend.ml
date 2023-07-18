@@ -198,56 +198,55 @@ let is_float inst_name =
   else
     false
 
-let qemu_execute_string_parse funcl_string_list =
-    let mm_regex = Str.regexp_string ("_" ^ !opt_ext) in
+let get_pat_params p_aux =
+  let commaspace_regex = Str.regexp_string ", " in
+  match p_aux with
+  | P_app (id, pats) ->
+    Str.split commaspace_regex (Pretty_print_sail.to_string(separate_map (comma ^^ space) Pretty_print_sail.doc_pat pats))
+  | _ -> [""]
+
+let get_pat_name p_aux =
+  match p_aux with
+  | P_app (id, pats) -> string_of_id id
+  | _ -> ""
+
+let qemu_execute_string_parse id (P_aux (p_aux, _)) exp =
     let leftp_regex = Str.regexp_string "(" in
     let rightp_regex = Str.regexp_string ")" in
     let whitespace_regex = Str.regexp_string " " in
     let comma_regex = Str.regexp_string "," in
+    let inst_name = String.lowercase_ascii(get_pat_name p_aux) in
+    let params = get_pat_params p_aux in
+    let body_exp = String.split_on_char '\n' (Pretty_print_sail.to_string(Pretty_print_sail.doc_exp_as_block exp)) in
 
-    let rec fn_setup funcl_string_list = 
-      match funcl_string_list with
-      | [] -> "", ""
-      | h :: t ->
-        if str_contains h "execute" then
-          let inst_name = String.lowercase_ascii(List.nth (String.split_on_char ' ' (List.hd (Str.split mm_regex h) ^ ("_" ^ !opt_ext))) 1) in
-          let params = List.nth (Str.split mm_regex h) 1 in
-          let params = List.hd (String.split_on_char '=' params) in
-          let params = Str.global_replace leftp_regex "" params in
-          let params = Str.global_replace rightp_regex "" params in
-          let params = Str.global_replace whitespace_regex "" params in
-          let params = String.split_on_char ',' params in
-          
-          let rec setup_fn_params params =
-            match params with
-            | [] -> "CPURISCVState *env);\n"
-            | h :: t ->
-              if str_contains h "vs2" then
-                "void* vs2, " ^ setup_fn_params t
-              else if str_contains h "vs1" then
-                "void* vs1," ^ setup_fn_params t
-              else if str_contains h "ms1" then
-                "void* ms1," ^ setup_fn_params t
-              else if str_contains h "ms2" then
-                "void* ms2," ^ setup_fn_params t
-              else if str_contains h "md" then
-                "void * md," ^ setup_fn_params t
-              else if str_contains h "ms3" then
-                "void * vs3," ^ setup_fn_params t
-              else if str_contains h "rs1" then
-                "uint64_t base," ^ setup_fn_params t
-              else
-                setup_fn_params t
-          in
-          "typedef void " ^ inst_name ^ "_fn(" ^ setup_fn_params params, inst_name
-
-        else
-          fn_setup t
+    let rec fn_setup inst_name params = 
+      let rec setup_fn_params params =
+        match params with
+        | [] -> "CPURISCVState *env);\n"
+        | h :: t ->
+          if str_contains h "vs2" then
+            "void* vs2, " ^ setup_fn_params t
+          else if str_contains h "vs1" then
+            "void* vs1," ^ setup_fn_params t
+          else if str_contains h "ms1" then
+            "void* ms1," ^ setup_fn_params t
+          else if str_contains h "ms2" then
+            "void* ms2," ^ setup_fn_params t
+          else if str_contains h "md" then
+            "void * md," ^ setup_fn_params t
+          else if str_contains h "ms3" then
+            "void * vs3," ^ setup_fn_params t
+          else if str_contains h "rs1" then
+            "uint64_t base," ^ setup_fn_params t
+          else
+            setup_fn_params t
+      in
+      "typedef void " ^ inst_name ^ "_fn(" ^ setup_fn_params params
     in
-    let fn_setup_def, inst_name = fn_setup funcl_string_list in
+    let fn_setup_def = fn_setup inst_name params in
 
-    let rec body_func_execute inst_name funcl_string_list n =
-      match funcl_string_list with
+    let rec body_func_execute inst_name exp_string n =
+      match exp_string with
       | [] -> "", n
       | h :: t ->
         let comma_regex = Str.regexp_string "," in
@@ -520,7 +519,7 @@ let qemu_execute_string_parse funcl_string_list =
         (* End body func exetute*)
     in
     let quote_regex = Str.regexp_string "'" in
-    let body_func, num_bracket =  body_func_execute inst_name funcl_string_list 0 in
+    let body_func, num_bracket =  body_func_execute inst_name body_exp 0 in
     let body_func = Str.global_replace quote_regex "" body_func in
  
     let rec add_bracket body n =
@@ -532,329 +531,220 @@ let qemu_execute_string_parse funcl_string_list =
     in
     let body_func = add_bracket body_func num_bracket in
 
-    let rec x_byte_setup funcl_string_list = 
-      match funcl_string_list with
-      | [] -> ""
-      | h :: t ->
-        if str_contains h "execute" then
-          let params = List.nth (Str.split mm_regex h) 1 in
-          let params = List.hd (String.split_on_char '=' params) in
-          let params = Str.global_replace leftp_regex "" params in
-          let params = Str.global_replace rightp_regex "" params in
-          let params = Str.global_replace whitespace_regex "" params in
-          let params = String.split_on_char ',' params in
-          
-          let rec setup_fn_params params =
-            match params with
-            | [] -> "CPURISCVState *env) {\\\n"
-            | h :: t ->
-              if str_contains h "vs2" then
-                "void* vs2, " ^ setup_fn_params t
-              else if str_contains h "vs1" then
-                "void* vs1," ^ setup_fn_params t
-              else if str_contains h "ms1" then
-                "void* ms1," ^ setup_fn_params t
-              else if str_contains h "ms2" then
-                "void* ms2," ^ setup_fn_params t
-              else if str_contains h "md" then
-                "void * md," ^ setup_fn_params t
-              else if str_contains h "ms3" then
-                "void * vs3," ^ setup_fn_params t
-              else if str_contains h "rs1" then
-                "uint64_t base," ^ setup_fn_params t
-              else
-                setup_fn_params t
-          in
-          "static void do_##NAME (" ^  setup_fn_params params
-
-        else
-          x_byte_setup t
+    let rec x_byte_setup params = 
+      let rec setup_fn_params params =
+        match params with
+        | [] -> "CPURISCVState *env) {\\\n"
+        | h :: t ->
+          if str_contains h "vs2" then
+            "void* vs2, " ^ setup_fn_params t
+          else if str_contains h "vs1" then
+            "void* vs1," ^ setup_fn_params t
+          else if str_contains h "ms1" then
+            "void* ms1," ^ setup_fn_params t
+          else if str_contains h "ms2" then
+            "void* ms2," ^ setup_fn_params t
+          else if str_contains h "md" then
+            "void * md," ^ setup_fn_params t
+          else if str_contains h "ms3" then
+            "void * vs3," ^ setup_fn_params t
+          else if str_contains h "rs1" then
+            "uint64_t base," ^ setup_fn_params t
+          else
+            setup_fn_params t
+      in
+      "static void do_##NAME (" ^  setup_fn_params params
     in
 
 
     let do_x_byte = "#define " ^ String.uppercase_ascii(inst_name) ^ "X(NAME)\\\n" ^
-                    x_byte_setup funcl_string_list ^ body_func ^ "}\n" in
+                    x_byte_setup params ^ body_func ^ "}\n" in
 
     let rvmmcall_def = "RVMMCALL(" ^ String.uppercase_ascii(inst_name) ^ "X," ^ inst_name ^ "_w)\n"  in
 
-    let rec do_x_x_params_setup inst_name funcl_string_list = 
-      match funcl_string_list with
-      | [] -> ""
-      | h :: t ->
-        if str_contains h "execute" then
-          let params = List.nth (Str.split mm_regex h) 1 in
-          let params = List.hd (String.split_on_char '=' params) in
-          let params = Str.global_replace leftp_regex "" params in
-          let params = Str.global_replace rightp_regex "" params in
-          let params = Str.global_replace whitespace_regex "" params in
-          let params = String.split_on_char ',' params in
-          
-          let rec setup_fn_params inst_name params =
-            match params with
-            | [] -> "CPURISCVState *env, " ^ inst_name ^ "_fn fn) {\n"
-            | h :: t ->
-              if str_contains h "vs2" then
-                "void* vs2, " ^ setup_fn_params inst_name t
-              else if str_contains h "vs1" then
-                "void* vs1," ^ setup_fn_params inst_name t
-              else if str_contains h "ms1" then
-                "void* ms1," ^ setup_fn_params inst_name t
-              else if str_contains h "ms2" then
-                "void* ms2," ^ setup_fn_params inst_name t
-              else if str_contains h "md" then
-                "void * md," ^ setup_fn_params inst_name t
-              else if str_contains h "ms3" then
-                "void * vs3," ^ setup_fn_params inst_name t
-              else if str_contains h "rs1" then
-                "uint64_t base," ^ setup_fn_params inst_name t
-              else
-                setup_fn_params inst_name t
-          in
-          "static void do_" ^ inst_name ^ "_x(" ^  setup_fn_params inst_name params
-
-        else
-          do_x_x_params_setup inst_name t
+    let rec do_x_x_params_setup inst_name params = 
+      let rec setup_fn_params inst_name params =
+        match params with
+        | [] -> "CPURISCVState *env, " ^ inst_name ^ "_fn fn) {\n"
+        | h :: t ->
+          if str_contains h "vs2" then
+            "void* vs2, " ^ setup_fn_params inst_name t
+          else if str_contains h "vs1" then
+            "void* vs1," ^ setup_fn_params inst_name t
+          else if str_contains h "ms1" then
+            "void* ms1," ^ setup_fn_params inst_name t
+          else if str_contains h "ms2" then
+            "void* ms2," ^ setup_fn_params inst_name t
+          else if str_contains h "md" then
+            "void * md," ^ setup_fn_params inst_name t
+          else if str_contains h "ms3" then
+            "void * vs3," ^ setup_fn_params inst_name t
+          else if str_contains h "rs1" then
+            "uint64_t base," ^ setup_fn_params inst_name t
+          else
+            setup_fn_params inst_name t
+      in
+      "static void do_" ^ inst_name ^ "_x(" ^  setup_fn_params inst_name params
     in
 
-    let rec do_x_x_body_setup  funcl_string_list = 
-      match funcl_string_list with
-      | [] -> ""
-      | h :: t ->
-        if str_contains h "execute" then
-          let params = List.nth (Str.split mm_regex h) 1 in
-          let params = List.hd (String.split_on_char '=' params) in
-          let params = Str.global_replace leftp_regex "" params in
-          let params = Str.global_replace rightp_regex "" params in
-          let params = Str.global_replace whitespace_regex "" params in
-          let params = String.split_on_char ',' params in
-          
-          let rec setup_fn_params params =
-            match params with
-            | [] -> "env);\n}\n"
-            | h :: t ->
-              if str_contains h "vs2" then
-                "vs2, " ^ setup_fn_params t
-              else if str_contains h "vs1" then
-                "vs1," ^ setup_fn_params t
-              else if str_contains h "ms1" then
-                "ms1," ^ setup_fn_params t
-              else if str_contains h "ms2" then
-                "ms2," ^ setup_fn_params t
-              else if str_contains h "md" then
-                "md," ^ setup_fn_params t
-              else if str_contains h "ms3" then
-                "vs3," ^ setup_fn_params t
-              else if str_contains h "rs1" then
-                "base," ^ setup_fn_params t
-              else
-                setup_fn_params t
-          in
-          "fn("  ^ setup_fn_params params
-
-        else
-          do_x_x_body_setup t
+    let rec do_x_x_body_setup params = 
+      let rec setup_fn_params params =
+        match params with
+        | [] -> "env);\n}\n"
+        | h :: t ->
+          if str_contains h "vs2" then
+            "vs2, " ^ setup_fn_params t
+          else if str_contains h "vs1" then
+            "vs1," ^ setup_fn_params t
+          else if str_contains h "ms1" then
+            "ms1," ^ setup_fn_params t
+          else if str_contains h "ms2" then
+            "ms2," ^ setup_fn_params t
+          else if str_contains h "md" then
+            "md," ^ setup_fn_params t
+          else if str_contains h "ms3" then
+            "vs3," ^ setup_fn_params t
+          else if str_contains h "rs1" then
+            "base," ^ setup_fn_params t
+          else
+            setup_fn_params t
+      in
+      "fn("  ^ setup_fn_params params
     in
 
-    let do_x_x = do_x_x_params_setup inst_name funcl_string_list ^ do_x_x_body_setup funcl_string_list in
+    let do_x_x = do_x_x_params_setup inst_name params ^ do_x_x_body_setup params in
 
-
-    let rec gen_def_params_setup inst_name funcl_string_list = 
-      match funcl_string_list with
-      | [] -> ""
-      | h :: t ->
-        if str_contains h "execute" then
-          let params = List.nth (Str.split mm_regex h) 1 in
-          let params = List.hd (String.split_on_char '=' params) in
-          let params = Str.global_replace leftp_regex "" params in
-          let params = Str.global_replace rightp_regex "" params in
-          let params = Str.global_replace whitespace_regex "" params in
-          let params = String.split_on_char ',' params in
-          
-          let rec setup_fn_params inst_name params =
-            match params with
-            | [] -> "CPURISCVState *env)\\\n"
-            | h :: t ->
-              if str_contains h "vs2" then
-                "void* vs2, " ^ setup_fn_params inst_name t
-              else if str_contains h "vs1" then
-                "void* vs1," ^ setup_fn_params inst_name t
-              else if str_contains h "ms1" then
-                "void* ms1," ^ setup_fn_params inst_name t
-              else if str_contains h "ms2" then
-                "void* ms2," ^ setup_fn_params inst_name t
-              else if str_contains h "md" then
-                "void * md," ^ setup_fn_params inst_name t
-              else if str_contains h "ms3" then
-                "void * vs3," ^ setup_fn_params inst_name t
-              else if str_contains h "rs1" then
-                "uint64_t base," ^ setup_fn_params inst_name t
-              else
-                setup_fn_params inst_name t
-          in
-          "#define GEN_" ^ String.uppercase_ascii(inst_name) ^ "(NAME) \\\n" ^
-          "void HELPER(NAME)(" ^ setup_fn_params inst_name params ^ "{\\\n"
-
-        else
-          gen_def_params_setup inst_name t
+    let rec gen_def_params_setup inst_name params = 
+      let rec setup_fn_params inst_name params =
+        match params with
+        | [] -> "CPURISCVState *env)\\\n"
+        | h :: t ->
+          if str_contains h "vs2" then
+            "void* vs2, " ^ setup_fn_params inst_name t
+          else if str_contains h "vs1" then
+            "void* vs1," ^ setup_fn_params inst_name t
+          else if str_contains h "ms1" then
+            "void* ms1," ^ setup_fn_params inst_name t
+          else if str_contains h "ms2" then
+            "void* ms2," ^ setup_fn_params inst_name t
+          else if str_contains h "md" then
+            "void * md," ^ setup_fn_params inst_name t
+          else if str_contains h "ms3" then
+            "void * vs3," ^ setup_fn_params inst_name t
+          else if str_contains h "rs1" then
+            "uint64_t base," ^ setup_fn_params inst_name t
+          else
+            setup_fn_params inst_name t
+      in
+      "#define GEN_" ^ String.uppercase_ascii(inst_name) ^ "(NAME) \\\n" ^
+      "void HELPER(NAME)(" ^ setup_fn_params inst_name params ^ "{\\\n"
     in
 
-    let rec gen_def_body_setup inst_name funcl_string_list = 
-      match funcl_string_list with
-      | [] -> ""
-      | h :: t ->
-        if str_contains h "execute" then
-          let params = List.nth (Str.split mm_regex h) 1 in
-          let params = List.hd (String.split_on_char '=' params) in
-          let params = Str.global_replace leftp_regex "" params in
-          let params = Str.global_replace rightp_regex "" params in
-          let params = Str.global_replace whitespace_regex "" params in
-          let params = String.split_on_char ',' params in
-          
-          let rec setup_fn_params inst_name params =
-            match params with
-            | [] -> "env, do_##NAME);\\\n"
-            | h :: t ->
-              if str_contains h "vs2" then
-                "vs2, " ^ setup_fn_params inst_name t
-              else if str_contains h "vs1" then
-                "vs1," ^ setup_fn_params inst_name t
-              else if str_contains h "ms1" then
-                "ms1," ^ setup_fn_params inst_name t
-              else if str_contains h "ms2" then
-                "ms2," ^ setup_fn_params inst_name t
-              else if str_contains h "md" then
-                "md," ^ setup_fn_params inst_name t
-              else if str_contains h "ms3" then
-                "vs3," ^ setup_fn_params inst_name t
-              else if str_contains h "rs1" then
-                "base," ^ setup_fn_params inst_name t
-              else
-                setup_fn_params inst_name t
-          in
-          "do_" ^ inst_name ^ "_x(" ^ setup_fn_params inst_name params ^ "}\n"
-
-        else
-          gen_def_body_setup inst_name t
+    let rec gen_def_body_setup inst_name params = 
+      let rec setup_fn_params inst_name params =
+        match params with
+        | [] -> "env, do_##NAME);\\\n"
+        | h :: t ->
+          if str_contains h "vs2" then
+            "vs2, " ^ setup_fn_params inst_name t
+          else if str_contains h "vs1" then
+            "vs1," ^ setup_fn_params inst_name t
+          else if str_contains h "ms1" then
+            "ms1," ^ setup_fn_params inst_name t
+          else if str_contains h "ms2" then
+            "ms2," ^ setup_fn_params inst_name t
+          else if str_contains h "md" then
+            "md," ^ setup_fn_params inst_name t
+          else if str_contains h "ms3" then
+            "vs3," ^ setup_fn_params inst_name t
+          else if str_contains h "rs1" then
+            "base," ^ setup_fn_params inst_name t
+          else
+            setup_fn_params inst_name t
+      in
+      "do_" ^ inst_name ^ "_x(" ^ setup_fn_params inst_name params ^ "}\n"
     in
 
-    let gen_def = gen_def_params_setup inst_name funcl_string_list ^ gen_def_body_setup inst_name funcl_string_list in
+    let gen_def = gen_def_params_setup inst_name params ^ gen_def_body_setup inst_name params in
 
     let gen = "GEN_" ^ String.uppercase_ascii(inst_name) ^ "(" ^ inst_name ^ "_w)\n\n" in
 
     fn_setup_def ^ do_x_byte ^ rvmmcall_def ^ do_x_x ^ gen_def ^ gen
 
-let qemu_trans_string funcl_string_list = 
-    let mm_regex = Str.regexp_string ("_" ^ !opt_ext) in
-    let leftp_regex = Str.regexp_string "(" in
-    let rightp_regex = Str.regexp_string ")" in
-    let whitespace_regex = Str.regexp_string " " in
+let qemu_trans_string (P_aux (p_aux, _)) = 
+    let inst_name = String.lowercase_ascii(get_pat_name p_aux) in
+    let param_list = get_pat_params p_aux in
 
-    let rec gen_helper_def funcl_string_list = 
-      match funcl_string_list with
-      | [] -> "TCGv_env);"
-      | h:: t->
-        if str_contains h "execute" then
-          let inst_name = String.lowercase_ascii(List.nth (String.split_on_char ' ' (List.hd (Str.split mm_regex h) ^ ("_" ^ !opt_ext))) 1) in
-          let params = List.nth (Str.split mm_regex h) 1 in
-          let params = List.hd (String.split_on_char '=' params) in
-          let params = Str.global_replace leftp_regex "" params in
-          let params = Str.global_replace rightp_regex "" params in
-          let params = Str.global_replace whitespace_regex "" params in
-          let params = String.split_on_char ',' params in
-
-          let rec setup_params params =
-            match params with
-            | [] -> ""
-            | h :: t ->
-              if str_contains h "vs2" then
-                "TCGv_ptr, " ^ setup_params t
-              else if str_contains h "vs1" then
-                "TCGv_ptr, " ^ setup_params t
-              else if str_contains h "ms1" then
-                "TCGv_ptr, " ^ setup_params t
-              else if str_contains h "ms2" then
-                "TCGv_ptr, " ^ setup_params t
-              else if str_contains h "md" then
-                "TCGv_ptr, " ^ setup_params t
-              else if str_contains h "ms3" then
-                "TCGv_ptr, " ^ setup_params t
-              else if str_contains h "rs1" then
-                "TCGv, " ^ setup_params t
-              else
-                setup_params t
-          in
-          let gen_params = setup_params params in
-        inst_name ^ "(" ^ gen_params ^ gen_helper_def t
-        else
-          gen_helper_def t
+    let gen_helper_def inst_name param_list = 
+        let rec setup_params params =
+          match params with
+          | [] -> ""
+          | h :: t ->
+            if str_contains h "vs2" then
+              "TCGv_ptr, " ^ setup_params t
+            else if str_contains h "vs1" then
+              "TCGv_ptr, " ^ setup_params t
+            else if str_contains h "ms1" then
+              "TCGv_ptr, " ^ setup_params t
+            else if str_contains h "ms2" then
+              "TCGv_ptr, " ^ setup_params t
+            else if str_contains h "md" then
+              "TCGv_ptr, " ^ setup_params t
+            else if str_contains h "ms3" then
+              "TCGv_ptr, " ^ setup_params t
+            else if str_contains h "rs1" then
+              "TCGv, " ^ setup_params t
+            else
+              setup_params t
+        in
+        let gen_params = setup_params param_list in
+        inst_name ^ "(" ^ gen_params ^ "TCGv_env);"
 
     in
-    let gen_helper = "typedef void gen_helper_" ^ gen_helper_def funcl_string_list ^ "\n\n" in
+    let gen_helper = "typedef void gen_helper_" ^ (gen_helper_def inst_name param_list) ^ "\n\n" in
 
-    let rec execute_func_def funcl_string_list =
-      match funcl_string_list with
-      | [] -> ""
-      | h :: t ->
-        if str_contains h "execute" then
-          let inst_name = String.lowercase_ascii(List.nth (String.split_on_char ' ' (List.hd (Str.split mm_regex h) ^ ("_" ^ !opt_ext))) 1) in
-          let head = "static inline bool do_" in
-          let params_start = "(DisasContext *ctx, arg_" in
-          let pointer_a = " *a" in
-          let pointer_fn = " *fn" in
-          let gen_helper = ", gen_helper_" in
-          let param_end = ") {\n" in
-          head ^ inst_name ^ params_start ^ inst_name ^ pointer_a ^ gen_helper ^ inst_name ^ pointer_fn ^ param_end
-        else
-          execute_func_def t
+    let execute_func_def inst_name =
+       let head = "static inline bool do_" in
+       let params_start = "(DisasContext *ctx, arg_" in
+       let pointer_a = " *a" in
+       let pointer_fn = " *fn" in
+       let gen_helper = ", gen_helper_" in
+       let param_end = ") {\n" in
+       head ^ inst_name ^ params_start ^ inst_name ^ pointer_a ^ gen_helper ^ inst_name ^ pointer_fn ^ param_end
     in
-    let func_def = execute_func_def funcl_string_list in
+    let func_def = execute_func_def inst_name in
 
-    let rec execute_setup funcl_string_list = 
-      match funcl_string_list with
-      | [] -> ""
-      | h :: t ->
-        if str_contains h "execute" then
-          let inst_name = List.nth (String.split_on_char ' ' (List.hd (Str.split mm_regex h))) 1 in
-          let params = List.nth (Str.split mm_regex h) 1 in
-          let params = List.hd (String.split_on_char '=' params) in
-          let params = Str.global_replace leftp_regex "" params in
-          let params = Str.global_replace rightp_regex "" params in
-          let params = Str.global_replace whitespace_regex "" params in
-          let params = String.split_on_char ',' params in
-          
-          let rec setup_regs params inst_name =
-            match params with
-            | [] -> ""
-            | h :: t ->
-              if str_contains h "vs2" then
-                "uint32_t vs2 = vreg_ofs(ctx, a->rs2);\n TCGv_ptr src2;\n" ^ setup_regs t inst_name
-              else if str_contains h "vs1" then
-                "uint32_t vs1 = vreg_ofs(ctx, a->rs1);\n TCGv_ptr src1;\n" ^ setup_regs t inst_name
-              else if str_contains h "ms1" then
-                "uint32_t ms1 = mregxy_ofs(ctx, a->rs1);\n TCGv_ptr src1;\n" ^ setup_regs t inst_name
-              else if str_contains h "ms2" then
-                "uint32_t ms2 = mregxy_ofs(ctx, a->rs2);\n TCGv_ptr src2;\n" ^ setup_regs t inst_name
-              else if str_contains h "md" then
-                if str_contains inst_name "XY" then
-                  "uint32_t md = mregxy_ofs(ctx, a->rd);\n TCGv_ptr dest;\n" ^ setup_regs t inst_name
-                else
-                  "uint32_t md = mregz_ofs(ctx, a->rd);\n TCGv_ptr dest;\n" ^ setup_regs t inst_name
-              else if str_contains h "ms3" then
-                "uint32_t ms3 = mregz_ofs(ctx, a->rd);\n TCGv_ptr src3;\n" ^ setup_regs t inst_name
-              else if str_contains h "rs1" then
-                "uint32_t rs1 = a->rs1;\n TCGv base;\n" ^ setup_regs t inst_name
-              else
-                setup_regs t inst_name
-          in
-          setup_regs params inst_name
-
-        else
-          execute_setup t
+    let rec execute_setup inst_name param_list = 
+      let rec setup_regs inst_name params =
+        match params with
+        | [] -> ""
+        | h :: t ->
+          if str_contains h "vs2" then
+            "uint32_t vs2 = vreg_ofs(ctx, a->rs2);\n TCGv_ptr src2;\n" ^ setup_regs inst_name t
+          else if str_contains h "vs1" then
+            "uint32_t vs1 = vreg_ofs(ctx, a->rs1);\n TCGv_ptr src1;\n" ^ setup_regs inst_name t
+          else if str_contains h "ms1" then
+            "uint32_t ms1 = mregxy_ofs(ctx, a->rs1);\n TCGv_ptr src1;\n" ^ setup_regs inst_name t
+          else if str_contains h "ms2" then
+            "uint32_t ms2 = mregxy_ofs(ctx, a->rs2);\n TCGv_ptr src2;\n" ^ setup_regs inst_name t
+          else if str_contains h "md" then
+            if str_contains inst_name "xy" then
+              "uint32_t md = mregxy_ofs(ctx, a->rd);\n TCGv_ptr dest;\n" ^ setup_regs inst_name t
+            else
+              "uint32_t md = mregz_ofs(ctx, a->rd);\n TCGv_ptr dest;\n" ^ setup_regs inst_name t
+          else if str_contains h "ms3" then
+            "uint32_t ms3 = mregz_ofs(ctx, a->rd);\n TCGv_ptr src3;\n" ^ setup_regs inst_name t
+          else if str_contains h "rs1" then
+            "uint32_t rs1 = a->rs1;\n TCGv base;\n" ^ setup_regs inst_name t
+          else
+            setup_regs inst_name t
+      in
+      setup_regs inst_name param_list
     in
-    let var_setup = execute_setup funcl_string_list in
+    let var_setup = execute_setup inst_name param_list in
 
-    let rec ptr_setup_execute var_setup_list =
-      match var_setup_list with
+    let rec ptr_setup_execute param_list =
+      match param_list with
       | [] -> ""
       | h :: t ->
         if str_contains h "md" then
@@ -875,13 +765,13 @@ let qemu_trans_string funcl_string_list =
         else if str_contains h "ms3" then
           "src3 = tcg_temp_new_ptr();\n" ^ "tcg_gen_addi_ptr(src3, cpu_env, ms3);\n" ^
            ptr_setup_execute t
-        else if str_contains h "base" then
+        else if str_contains h "rs1" then
           "base = get_gpr(ctx, rs1, EXT_NONE);\n" ^
            ptr_setup_execute t
         else
           ptr_setup_execute t
     in
-    let ptr_setup = ptr_setup_execute (String.split_on_char '\n' var_setup) in
+    let ptr_setup = ptr_setup_execute param_list in
 
     let rec free_ptr body_string_list = 
       match body_string_list with
@@ -923,69 +813,66 @@ let qemu_trans_string funcl_string_list =
 
     let do_x = func_def ^ var_setup ^ label ^  ptr_setup ^ fn_call ^ end_func in
 
-    let rec do_x_gvec funcl_string_list =
-      match funcl_string_list with
-      | [] -> "\n"
-      | h :: t ->
-        if str_contains h "execute" then
-          let inst_name = String.lowercase_ascii(List.nth (String.split_on_char ' ' (List.hd (Str.split mm_regex h) ^ ("_" ^ !opt_ext))) 1) in
-          let head = "static bool do_" in
-          let params_start = "_gvec(DisasContext *ctx, arg_" in
-          let pointer_a = " *a" in
-          let pointer_fn = " *fn" in
-          let gen_helper = ", gen_helper_" in
-          let param_end = ") {\n" in
-          let body = "return do_" in
-          let body_params = "(ctx, a, fn);\n" in
-          let body_end = "}\n" in
-          head ^ inst_name ^ params_start ^ inst_name ^ pointer_a ^ gen_helper ^ inst_name ^ pointer_fn ^ param_end ^
-          body ^ inst_name ^ body_params ^ body_end
-        else
-          do_x_gvec t
+    let rec do_x_gvec inst_name =
+      let head = "static bool do_" in
+      let params_start = "_gvec(DisasContext *ctx, arg_" in
+      let pointer_a = " *a" in
+      let pointer_fn = " *fn" in
+      let gen_helper = ", gen_helper_" in
+      let param_end = ") {\n" in
+      let body = "return do_" in
+      let body_params = "(ctx, a, fn);\n" in
+      let body_end = "}\n" in
+      head ^ inst_name ^ params_start ^ inst_name ^ pointer_a ^ gen_helper ^ inst_name ^ pointer_fn ^ param_end ^
+      body ^ inst_name ^ body_params ^ body_end
     in
-    let do_x_gvec_def = do_x_gvec funcl_string_list in
+    let do_x_gvec_def = do_x_gvec inst_name in
 
-    let rec do_gen_x funcl_string_list =
-      match funcl_string_list with
-      | [] -> "\n"
-      | h :: t ->
-        if str_contains h "execute" then
-          let inst_name = String.lowercase_ascii(List.nth (String.split_on_char ' ' (List.hd (Str.split mm_regex h) ^ ("_" ^ !opt_ext))) 1) in
-
-          let upper_name = String.uppercase_ascii(inst_name) in
-          let define_head = "#define GEN_" in
-          let define_end = "_TRANS(NAME) \\\n" in
-          let head = "static bool trans_##NAME(DisasContext *ctx, arg_" in
-          let pointer_a = " *a" in
-          let param_end = ") {\\\n" in
-          let body_array = "static gen_helper_" in
-          let body_array_end = " * const fns[1] = { gen_helper_##NAME##_w };\\\n" in
-          let body = "return do_" in
-          let body_params = "_gvec(ctx, a, fns[0]); \\\n" in
-          let body_end = "}\n" in
-          let gen = "GEN_" in
-          let gen_mid = "_TRANS(" in
-          let gen_end = ")\n\n" in
-           
-          define_head ^ upper_name ^ define_end ^
-          head ^ inst_name ^ pointer_a ^ param_end ^
-          body_array ^ inst_name ^ body_array_end ^
-          body ^ inst_name ^ body_params ^ body_end ^
-          gen ^ upper_name ^ gen_mid ^ inst_name ^ gen_end
-
-        else
-          do_gen_x t
+    let rec do_gen_x inst_name =
+      let upper_name = String.uppercase_ascii(inst_name) in
+      let define_head = "#define GEN_" in
+      let define_end = "_TRANS(NAME) \\\n" in
+      let head = "static bool trans_##NAME(DisasContext *ctx, arg_" in
+      let pointer_a = " *a" in
+      let param_end = ") {\\\n" in
+      let body_array = "static gen_helper_" in
+      let body_array_end = " * const fns[1] = { gen_helper_##NAME##_w };\\\n" in
+      let body = "return do_" in
+      let body_params = "_gvec(ctx, a, fns[0]); \\\n" in
+      let body_end = "}\n" in
+      let gen = "GEN_" in
+      let gen_mid = "_TRANS(" in
+      let gen_end = ")\n\n" in
+       
+      define_head ^ upper_name ^ define_end ^
+      head ^ inst_name ^ pointer_a ^ param_end ^
+      body_array ^ inst_name ^ body_array_end ^
+      body ^ inst_name ^ body_params ^ body_end ^
+      gen ^ upper_name ^ gen_mid ^ inst_name ^ gen_end
     in
-    let do_gen_x_def = do_gen_x funcl_string_list in
+    let do_gen_x_def = do_gen_x inst_name in
 
     gen_helper ^ do_x  ^ do_x_gvec_def ^ do_gen_x_def
 
-let qemu_execute_string funcl_string = 
-  if str_contains funcl_string !opt_ext then
-    let funcl_string_list = String.split_on_char '\n' funcl_string in
-    qemu_execute_string_parse funcl_string_list
-  else
-    ""
+let qemu_execute_string id pat exp = 
+  qemu_execute_string_parse id pat exp
+
+let sail_to_qemu_execute (FCL_aux (FCL_Funcl (id, Pat_aux (pexp,_)), _)) outtype =
+  match string_of_id(id) with
+    | "execute" ->
+      (match pexp with
+        | Pat_exp (pat,exp) ->
+          let pat_string = Pretty_print_sail.to_string(Pretty_print_sail.doc_pat pat) in
+          if str_contains pat_string !opt_ext then
+            (match outtype with
+             | "helper" -> qemu_execute_string id pat exp
+             | "trans" -> qemu_trans_string pat
+             | _ -> "")
+          else
+            ""
+        | _ -> "") 
+    | _ -> ""
+
 let rec get_mpat_decode_format (MP_aux (mp_aux, _) as mpat)  =
   match mp_aux with
   | MP_lit lit -> Pretty_print_sail.to_string(get_bit lit)
@@ -999,7 +886,7 @@ let rec get_mpat_decode_format (MP_aux (mp_aux, _) as mpat)  =
           bit_def0 ^ bit_def1
     in
     create_decode_body pats
-   | _ -> " ....."
+   | _ -> "....."
 
 let create_decode_body mpexp =
   match mpexp with
@@ -1021,26 +908,26 @@ let get_instr_params mpexp =
 let qemu_decode_string (MPat_aux(mpexp1, _)) (MPat_aux(mpexp2, _)) =
   let annot = get_mpexp_annot mpexp1 in
   if annot = !opt_ext then
-    let inst_name = String.lowercase_ascii ((get_instr_name mpexp1) ^ ("_" ^ !opt_ext)) in
+    let inst_name = String.lowercase_ascii ((get_instr_name mpexp1)) in
 
     let params = get_instr_params mpexp1 in
     let inst_structure params =
       if str_contains params "vs2, vs1, md" then
-        "@r\n"
+        " @r\n"
       else if str_contains params "ms2, ms1, md" then
-        "@r\n"
+        " @r\n"
       else if str_contains params "rs1, md" then
-        "@r2\n"
+        " @r2\n"
       else if str_contains params "rs1, ms3" then
-        "@r2\n"
+        " @r2\n"
       else if str_contains params "vs2, md" then
-        "@r2\n"
+        " @r2\n"
       else if str_contains params "vs1, md" then
-        "@r2\n"
+        " @r2\n"
       else if str_contains params "ms2, md" then
-        "@r2\n"
+        " @r2\n"
       else if str_contains params "ms1, md" then
-        "@r2\n"
+        " @r2\n"
       else
         ""
     in
@@ -1078,25 +965,11 @@ let create_helper_body mpexp num =
 let qemu_thelper_string (MPat_aux(mpexp1, _)) (MPat_aux(mpexp2, _)) = 
   let annot = get_mpexp_annot mpexp1 in
   if annot = !opt_ext then
-    let inst_name = String.lowercase_ascii (get_instr_name mpexp1 ^ "_" ^ !opt_ext ^ "_w") in
+    let inst_name = String.lowercase_ascii (get_instr_name mpexp1 ^ "_w") in
     let helper_body, n = create_helper_body mpexp2 0 in
     "DEF_HELPER_" ^ string_of_int(n) ^ "(" ^ inst_name ^ ", void" ^ helper_body ^ "\n"
   else
     ""
-
-let sail_to_qemu_execute clause outtype =
-  let funcl_string = Pretty_print_sail.to_string(Pretty_print_sail.doc_funcl clause) in
-  if (str_contains funcl_string "execute") && (str_contains funcl_string !opt_ext) then
-    if outtype = "helper" then
-      qemu_execute_string funcl_string   
-    else if outtype = "trans" then
-      let funcl_string_list = String.split_on_char '\n' funcl_string in
-      qemu_trans_string funcl_string_list 
-    else
-      ""
-  else
-    "" 
-
 
 let sail_to_qemu_mapping id (MCL_aux(cl,_)) outtype = 
   match string_of_id(id) with
