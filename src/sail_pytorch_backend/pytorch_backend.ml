@@ -65,20 +65,6 @@
 (*  SUCH DAMAGE.                                                            *)
 (****************************************************************************)
 
-(*TODO DEAD CODE*)
-
-              (*let op_list = find_ops (String.split_on_char ' ' (List.nth (String.split_on_char '@' execute_str) 1)) in
-              let op_list = String.split_on_char ' ' op_list in
-              let op_str = ("    " ^ List.nth abcd_list (n-1) ^ "_ptr[j + l*length] = " ^
-                            List.nth abcd_list 1 ^ "_ptr[j]" ^
-                            List.nth op_list 0 ^ List.nth abcd_list 2 ^ "_ptr[l]"  ^ List.nth op_list 1 ^
-                            List.nth abcd_list (n-1) ^ "_ptr[j + l*length];\n") in
-          
-              let forl = ("  const int64_t length = input1_sizes[0];\n  for (const auto l : c10::irange(length)) {\n" ^
-                          "    for (const auto j : c10::irange(length)) {\n" ^ op_str ^
-                          "    }\n  }\n  return " ^ List.nth abcd_list (n-1)  ^ ";\n}\n") in
-              headers ^ scalar_t ^ (setup_var n) ^ forl*)
-
 open Libsail
 
 open Ast
@@ -94,6 +80,8 @@ open Value2
 open Anf
 
 module Big_int = Nat_big_num
+
+let opt_ext = ref "mm"
 
 let str_contains s1 s2 =
     let re = Str.regexp_string s2
@@ -152,7 +140,7 @@ let rec tensorops_rgenircl rgenircl_string_list outtype=
               match str_list with
               | [] -> ""
               | h :: t ->
-                if str_contains h "execute_mm" then
+                if str_contains h (!opt_ext) then
                   if outtype = "norm" then
                     (*let headers = "\n#ifndef MM_H\n#define MM_H\n#include <c10/util/irange.h>\n#endif\n" in *)
                     let quotation_regex = Str.regexp "\"" in 
@@ -400,7 +388,7 @@ let rec tosa_rgenirdef (RGENIRD_aux (RGENIRD_cl (id, rgenircls), _)) outtype =
   | [] -> failwith "No rgenir clause"
   | _ -> tosa_rgenircl rgenircls outtype
 
-let compile_ast env effect_info output_chan ast opt_pytorch opt_tosa opt_torch_rgenir =
+let compile_ast env effect_info output_chan ast =
   let td_def def outtype = 
     match def with
     | DEF_rgenirdef rgenirdef -> tosa_rgenirdef rgenirdef outtype
