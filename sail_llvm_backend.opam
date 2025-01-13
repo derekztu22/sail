@@ -30,7 +30,12 @@ build: [
     "build"
     "-p"
     name
+    "-j"
+    jobs
+    "--promote-install-files=false"
     "@install"
+    "@runtest" {with-test}
+    "@doc" {with-doc}
   ]
   ["dune" "install" "-p" name "--create-install-files" name]
 ]

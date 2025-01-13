@@ -37,7 +37,6 @@ depends: [
   "sail_c_backend" {= version & post}
   "sail_pytorch_backend" {= version & post}
   "sail_llvm_backend" {= version & post}
-  "sail_qemu_backend" {= version & post}
   "sail_smt_backend" {= version & post}
   "sail_sv_backend" {= version & post}
   "sail_lem_backend" {= version & post}
