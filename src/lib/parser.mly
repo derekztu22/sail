@@ -145,11 +145,6 @@ let mk_forwards_mapcl pexp n m = MCL_aux (MCL_forwards pexp, loc n m)
 let mk_backwards_mapcl pexp n m = MCL_aux (MCL_backwards pexp, loc n m)
 let mk_map id tannot mapcls n m = MD_aux (MD_mapping (id, tannot, mapcls), loc n m)
 
-let doc_loc doc l =
-  match l with
-  | Documented _ -> l
-  | _            -> Documented (doc, l)
-
 let doc_funcl doc (FCL_aux (f, l)) = FCL_aux (f, doc_loc doc l)
 let doc_fun doc (FD_aux (fn, l)) = FD_aux (fn, doc_loc doc l)
 let doc_td doc (TD_aux (t, l)) = TD_aux (t, doc_loc doc l)
@@ -260,7 +255,7 @@ let set_syntax_deprecated l =
 %nonassoc Else
 
 %token Bar Comma Dot Eof Minus Semi Under DotDot At ColonColon Caret Star
-%token Lcurly Rcurly Lparen Rparen Lsquare Rsquare LcurlyBar RcurlyBar LsquareBar RsquareBar
+%token Lcurly Rcurly Lparen Rparen Lsquare Rsquare LcurlyBar RcurlyBar LsquareBar RsquareBar Lt Gt
 %token MinusGt Bidir
 
 /*Terminals with content*/

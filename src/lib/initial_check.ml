@@ -1825,8 +1825,6 @@ let rec to_ast_mapcl doc attrs ctx (P.MCL_aux (mapcl, l)) =
   | P.MCL_forwards pexp -> MCL_aux (MCL_forwards (to_ast_case ctx pexp), (mk_def_annot ?doc ~attrs l (), empty_uannot))
   | P.MCL_backwards pexp -> MCL_aux (MCL_backwards (to_ast_case ctx pexp), (mk_def_annot ?doc ~attrs l (), empty_uannot))
 
-let to_ast_mapdef ctx (P.MD_aux (md, l) : P.mapdef) : uannot mapdef =
-
 let to_ast_rgenirlit ctx (P.RGENIRLit_aux(rgenirlit, l)) =
   RGENIRLit_aux(
     (match rgenirlit with

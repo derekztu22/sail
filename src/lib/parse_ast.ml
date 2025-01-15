@@ -308,11 +308,6 @@ type rgenirpexp_aux =
 type rgenir_pexp =
   RGENIRPat_aux of rgenirpexp_aux * l
 
-type 
-tannot_opt_aux =  (* Optional type annotation for functions *)
-   Typ_annot_opt_none
- | Typ_annot_opt_some of typquant * atyp
-
 type effect_opt_aux =
   | (* Optional effect annotation for functions *)
     Effect_opt_none (* sugar for empty effect set *)

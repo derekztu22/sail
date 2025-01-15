@@ -1459,7 +1459,6 @@ let id_of_dec_spec (DEC_aux (DEC_reg (_, id, _), _)) = id
 
 let id_of_scattered (SD_aux (sdef, _)) =
   match sdef with
-<<<<<<< HEAD
   | SD_function (id, _)
   | SD_funcl (FCL_aux (FCL_funcl (id, _), _))
   | SD_end id
@@ -1471,15 +1470,9 @@ let id_of_scattered (SD_aux (sdef, _)) =
   | SD_enum id
   | SD_enumcl (id, _) ->
       id
-=======
   | SD_function (_, _, id)  | SD_funcl (FCL_aux (FCL_Funcl (id, _), _)) | SD_end id
     | SD_variant (id, _) | SD_unioncl (id, _)
-<<<<<<< HEAD
-    | SD_mapping (id, _) | SD_mapcl (id, _) -> id | SD_mlircl (id, _) -> id
->>>>>>> 9e8dfeed (finish mlir first pass)
-=======
     | SD_mapping (id, _) | SD_mapcl (id, _) -> id | SD_rgenircl (id, _) -> id
->>>>>>> c1d4770c (replace mlir with rgenir)
 
 let ids_of_def (DEF_aux (aux, _)) =
   match aux with
@@ -1745,26 +1738,17 @@ let construct_pexp (pat, guard, exp, ann) =
 let destruct_mpexp (MPat_aux (mpexp, ann)) =
   match mpexp with MPat_pat mpat -> (mpat, None, ann) | MPat_when (mpat, guard) -> (mpat, Some guard, ann)
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 let construct_mpexp (mpat, guard, ann) =
   match guard with None -> MPat_aux (MPat_pat mpat, ann) | Some guard -> MPat_aux (MPat_when (mpat, guard), ann)
-=======
-let destruct_mlir_pexp (MLIRPat_aux (mlir_pexp,ann)) =
-  match mlir_pexp with
-  | MLIRPat_exp (mlirpat, exp) -> mlirpat,None,exp,ann
-=======
+
 let destruct_rgenir_pexp (RGENIRPat_aux (rgenir_pexp,ann)) =
   match rgenir_pexp with
   | RGENIRPat_exp (rgenirpat, exp) -> rgenirpat,None,exp,ann
->>>>>>> c1d4770c (replace mlir with rgenir)
 
 let construct_rgenir_pexp (rgenirpat,guard,exp,ann) =
   match guard with
   | None -> RGENIRPat_aux (RGENIRPat_exp (rgenirpat,exp),ann)
   | Some guard -> RGENIRPat_aux (RGENIRPat_exp (rgenirpat,exp),ann)
-
->>>>>>> 9e8dfeed (finish mlir first pass)
 
 let is_valspec id = function
   | DEF_aux (DEF_val (VS_aux (VS_val_spec (_, id', _), _)), _) when Id.compare id id' = 0 -> true
