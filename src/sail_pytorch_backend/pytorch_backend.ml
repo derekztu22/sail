@@ -366,7 +366,7 @@ let rec nfunctions_rgenircl rgenircl_string_list outtype=
       "" ^ nfunctions_rgenircl t outtype
 
 let sail_to_tosa clause outtype =
-  let rgenircl_string = Pretty_print_sail.to_string(Pretty_print_sail.doc_rgenircl clause) in
+  let rgenircl_string = Pretty_print_sail.Document.to_string(Pretty_print_sail.doc_rgenircl clause) in
   let rgenircl_string_list = String.split_on_char '\n' rgenircl_string in
   if outtype = "tensorops" then
     (tensorops_rgenircl rgenircl_string_list "norm" ^ "\n" ^
@@ -397,7 +397,7 @@ let compile_ast env effect_info output_chan ast =
 
   let rec process_defs_to_tosa outtype = function
     | [] -> ""
-    | def :: defs ->
+    | DEF_aux (def, _):: defs ->
        let td  =  td_def def outtype in
        td ^  process_defs_to_tosa outtype defs
   in
@@ -418,8 +418,6 @@ let compile_ast env effect_info output_chan ast =
   let output_chan = open_out fname5 in
   Printf.fprintf output_chan "%s" tosa_nfunctions;
   close_out output_chan;
-
-Pretty_print_sail.pp_ast stdout ast
 
  (* print_endline(tosa_nfunctions);*)
  (* print_endline(tosa_tensorops)*)

@@ -81,6 +81,12 @@ open Anf
 
 module Big_int = Nat_big_num
 
+module Printer = Pretty_print_sail.Printer (struct
+  let insert_braces = false
+  let resugar = false
+  let hide_attributes = true
+end)
+
 let opt_ext = ref "MM"
 
 let extra_trans_header ext = 
@@ -202,7 +208,7 @@ let get_pat_params p_aux =
   let commaspace_regex = Str.regexp_string ", " in
   match p_aux with
   | P_app (id, pats) ->
-    Str.split commaspace_regex (Pretty_print_sail.to_string(separate_map (comma ^^ space) Pretty_print_sail.doc_pat pats))
+    Str.split commaspace_regex (Pretty_print_sail.Document.to_string(separate_map (comma ^^ space) Printer.doc_pat pats))
   | _ -> [""]
 
 let get_pat_name p_aux =
@@ -217,7 +223,7 @@ let qemu_execute_string_parse id (P_aux (p_aux, _)) exp =
     let comma_regex = Str.regexp_string "," in
     let inst_name = String.lowercase_ascii(get_pat_name p_aux) in
     let params = get_pat_params p_aux in
-    let body_exp = String.split_on_char '\n' (Pretty_print_sail.to_string(Pretty_print_sail.doc_exp_as_block exp)) in
+    let body_exp = String.split_on_char '\n' (Pretty_print_sail.Document.to_string(Printer.doc_exp_as_block exp)) in
 
     let rec fn_setup inst_name params = 
       let rec setup_fn_params params =
@@ -857,12 +863,12 @@ let qemu_trans_string (P_aux (p_aux, _)) =
 let qemu_execute_string id pat exp = 
   qemu_execute_string_parse id pat exp
 
-let sail_to_qemu_execute (FCL_aux (FCL_Funcl (id, Pat_aux (pexp,_)), _)) outtype =
+let sail_to_qemu_execute (FCL_aux (FCL_funcl (id, Pat_aux (pexp,_)), _)) outtype =
   match string_of_id(id) with
     | "execute" ->
       (match pexp with
         | Pat_exp (pat,exp) ->
-          let pat_string = Pretty_print_sail.to_string(Pretty_print_sail.doc_pat pat) in
+          let pat_string = Pretty_print_sail.Document.to_string(Pretty_print_sail.doc_pat pat) in
           if str_contains pat_string !opt_ext then
             (match outtype with
              | "helper" -> qemu_execute_string id pat exp
@@ -875,7 +881,7 @@ let sail_to_qemu_execute (FCL_aux (FCL_Funcl (id, Pat_aux (pexp,_)), _)) outtype
 
 let rec get_mpat_decode_format (MP_aux (mp_aux, _) as mpat)  =
   match mp_aux with
-  | MP_lit lit -> Pretty_print_sail.to_string(get_bit lit)
+  | MP_lit lit -> Pretty_print_sail.Document.to_string(get_bit lit)
   | MP_vector_concat pats ->
     let rec create_decode_body patts =
       match patts with
@@ -897,7 +903,7 @@ let rec get_mpat_params (MP_aux(mp_aux, _) as mpat) =
   let commaspace_regex = Str.regexp_string ", " in
   match mp_aux with
   | MP_app (id, pats) ->
-      Pretty_print_sail.to_string(separate_map (comma ^^ space) Pretty_print_sail.doc_mpat pats)
+      Pretty_print_sail.Document.to_string(separate_map (comma ^^ space) Pretty_print_sail.doc_mpat pats)
   | _ -> ""
 
 let get_instr_params mpexp =
@@ -1019,7 +1025,7 @@ let compile_ast env effect_info output_chan ast =
 
   let rec process_defs outtype = function
     | [] -> ""
-    | def :: defs ->
+    | DEF_aux(def, _) :: defs ->
        if outtype = "helper" || outtype = "trans" then
          let td  =  td_fun_def def outtype in
          td ^  process_defs outtype defs
@@ -1034,7 +1040,6 @@ let compile_ast env effect_info output_chan ast =
   let ext = !opt_ext in
   let outtype = "trans" in
   let qemu_trans = extra_trans_header ext ^ process_defs outtype ast.defs in
-
 
   (* FUNCTION BASED*)
   let outtype = "helper" in
@@ -1067,5 +1072,3 @@ let compile_ast env effect_info output_chan ast =
   let output_chan = open_out fname3 in
   Printf.fprintf output_chan "%s" qemu_decode;
   close_out output_chan;
-
-  Pretty_print_sail.pp_ast stdout ast;

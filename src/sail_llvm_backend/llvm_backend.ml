@@ -81,6 +81,12 @@ open Anf
 
 module Big_int = Nat_big_num
 
+module Printer = Pretty_print_sail.Printer (struct
+  let insert_braces = false
+  let resugar = false
+  let hide_attributes = true
+end)
+
 let opt_ext = ref "MM"
 
 let print_matrix_register_files output_chan = 
@@ -215,7 +221,7 @@ let rec get_mpat_params (MP_aux(mp_aux, _) as mpat) =
   let commaspace_regex = Str.regexp_string ", " in
   match mp_aux with
   | MP_app (id, pats) ->
-      Str.split commaspace_regex (Pretty_print_sail.to_string(separate_map (comma ^^ space) Pretty_print_sail.doc_mpat pats))
+      Str.split commaspace_regex (Pretty_print_sail.Document.to_string(separate_map (comma ^^ space) Printer.doc_mpat pats))
   | _ -> [""] 
 
 let get_instr_params mpexp =
@@ -251,7 +257,7 @@ let get_register_string mpat_string =
 let rec get_mpat_bit_format (MP_aux (mp_aux, _) as mpat)  bit_num = 
   match mp_aux with
   | MP_lit lit ->
-            let bits = Pretty_print_sail.to_string(get_bit lit) in
+            let bits = Pretty_print_sail.Document.to_string(get_bit lit) in
             let str_length = String.length bits in
 
              if str_length = 1 then
@@ -535,7 +541,7 @@ let compile_ast env effect_info output_chan ast =
 
   let rec process_defs outtype = function
     | [] -> ""
-    | def :: defs ->
+    | DEF_aux(def, _) :: defs ->
        let td  =  td_def def outtype in
        td ^  process_defs outtype defs
   in
@@ -587,4 +593,3 @@ let compile_ast env effect_info output_chan ast =
   let output_chan = open_out fname2 in
   Printf.fprintf output_chan "%s" scheduler;
   close_out output_chan;
-  Pretty_print_sail.pp_ast stdout ast

@@ -89,18 +89,18 @@ let rec filter_union_clauses id = function
   | def :: defs -> def :: filter_union_clauses id defs
   | [] -> []
 
-let rec get_rgenir_clauses id = function
-  | DEF_scattered (SD_aux (SD_rgenircl (rgenirid, rgenircl), _)) :: defs when Id.compare id rgenirid = 0 ->
-     rgenircl :: get_rgenir_clauses id defs
-  | _ :: defs ->
-     get_rgenir_clauses id defs
-  | [] -> []
+let rec get_rgenir_clauses id acc = function
+  | DEF_aux (DEF_scattered (SD_aux (SD_rgenircl (rgenirid, rgenircl), _)), _)
+    :: defs
+    when Id.compare id rgenirid = 0 ->
+     get_rgenir_clauses id acc defs
+  | def :: defs -> get_rgenir_clauses id acc defs
+  | [] -> acc
 
 let rec filter_rgenir_clauses id = function
-  | DEF_scattered (SD_aux (SD_rgenircl (rgenirid, rgenircl), _)) :: defs when Id.compare id rgenirid = 0 ->
+  | DEF_aux (DEF_scattered (SD_aux (SD_rgenircl (rgenirid, rgenircl), _)), _) :: defs when Id.compare id rgenirid = 0 ->
      filter_rgenir_clauses id defs
-  | def :: defs ->
-     def :: filter_rgenir_clauses id defs
+  | def :: defs -> def :: filter_rgenir_clauses id defs
   | [] -> []
 
 let rec filter_enum_clauses id = function
@@ -174,20 +174,14 @@ let rec descatter' annots accumulator funcls mapcls = function
         | None -> descatter' annots accumulator funcls (Bindings.add id [mapcl] mapcls) defs
       end
 
-  | DEF_aux (DEF_scattered (SD_aux (SD_mapcl (id, mapcl), _)), def_annot) :: defs ->
-     begin match Bindings.find_opt id mapcls with
-     | Some clauses -> descatter' funcls (Bindings.add id (mapcl :: clauses) mapcls) defs
-     | None -> descatter' funcls (Bindings.add id [mapcl] mapcls) defs
-     end
-
   | DEF_aux (DEF_scattered (SD_aux (SD_rgenircl (id, rgenircl), (l, tannot))), def_annot) :: defs ->
-     let rgenircls = get_rgenir_clauses id defs in
+     let rgenircls = get_rgenir_clauses id [] defs in
      let rgenircls = rgenircl :: rgenircls in
      begin match rgenircls with
      | [] -> raise (Reporting.err_general l "No clauses found for scattered rgenir type")
      | _ ->
-       DEF_rgenirdef (RGENIRD_aux (RGENIRD_cl (id, rgenircls), (gen_loc l, tannot)))
-       :: descatter' funcls mapcls (filter_rgenir_clauses id defs)
+       DEF_aux (DEF_rgenirdef (RGENIRD_aux (RGENIRD_cl (id, rgenircls), (gen_loc l, tannot))), def_annot)
+       :: descatter' annots accumulator funcls mapcls (filter_rgenir_clauses id defs)
      end
 
   (* For scattered unions, when we find a union declaration we

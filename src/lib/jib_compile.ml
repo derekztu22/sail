@@ -763,7 +763,6 @@ module Make (C : CONFIG) = struct
         let _, _, _, uannot = Util.last cases in
         Option.is_some (get_attribute "mapping_last" uannot)
 
-<<<<<<< HEAD
   let rec compile_aexp ctx (AE_aux (aexp_aux, { env; loc = l; uannot })) =
     let ctx = { ctx with local_env = env } in
     match aexp_aux with

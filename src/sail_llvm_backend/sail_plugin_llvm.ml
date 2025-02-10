@@ -66,24 +66,24 @@
 (****************************************************************************)
 
 open Libsail
-
+open Interactive.State
 
 let llvm_options = [
-  ( "-ext",
-    Arg.String (fun ext -> Llvm_backend.opt_ext := ext),
-    "extension name");
+  (Flag.create ~prefix:["llvm"] ~arg:"ext" "ext",
+        Arg.String (fun ext -> Llvm_backend.opt_ext := ext),
+        "Extension shorthand for instruction generation (helps with file naming)"
+  );
 ]
  
-let llvm_target _ out_file ast effect_info _ =
-  let ast, env = Type_error.check Type_check.initial_env ast in
+let llvm_target out_file {ast; effect_info; env; _ } =
   let close, output_chan = match out_file with Some f -> true, open_out (f ^ ".td") | None -> false, stdout in
   Reporting.opt_warnings := true;
-  Llvm_backend.compile_ast env effect_info output_chan ast;
+  Llvm_backend.compile_ast env effect_info output_chan (Type_check.strip_ast ast);
   flush output_chan
 
 let _ =
   Target.register
     ~name:"llvm"
     ~options:llvm_options
-    ~pre_parse_hook:(fun () -> Initial_check.opt_undefined_gen := true)
+    ~supports_abstract_types:true
     llvm_target

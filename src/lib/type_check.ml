@@ -2609,13 +2609,13 @@ and check_case env pat_typ pexp typ =
       | _ -> raise typ_exn
     )
 
-and check_rgenirlit env (RGENIRLit_aux (rgenirlit_aux, (l, ())) as rgenirlit : unit rgenirlit) typ =
+and check_rgenirlit env (RGENIRLit_aux (rgenirlit_aux, (l, uannot)) as rgenirlit : uannot rgenirlit) typ =
   let annot_rgenirlit rgenirlit typ' = RGENIRLit_aux(rgenirlit, (l, mk_expected_tannot env typ' (Some typ))) in
   match rgenirlit_aux with
   | RGENIRLit_string str ->
     annot_rgenirlit(RGENIRLit_string str) typ
 
-and check_rgeniratt env (RGENIRatt_aux (rgeniratt_aux, (l, ())) as rgeniratt : unit rgeniratt) typ =
+and check_rgeniratt env (RGENIRatt_aux (rgeniratt_aux, (l, uannot)) as rgeniratt : uannot rgeniratt) typ =
   let annot_rgeniratt rgeniratt typ' = RGENIRatt_aux(rgeniratt, (l, mk_expected_tannot env typ' (Some typ))) in
   match rgeniratt_aux with
   | RGENIRatt_id id ->
@@ -2623,6 +2623,46 @@ and check_rgeniratt env (RGENIRatt_aux (rgeniratt_aux, (l, ())) as rgeniratt : u
   | RGENIRatt_ctor (id, id1, rgenirlit) ->
     let checked_rgenirlit = check_rgenirlit env rgenirlit typ in
     annot_rgeniratt(RGENIRatt_ctor (id, id1, checked_rgenirlit)) typ
+
+and check_rgenir_pexp other_env env rgenir_pexp typ =
+  let rgenirpat,guard,exp,((l,_) as annot) = destruct_rgenir_pexp rgenir_pexp in
+  match bind_rgenirpat false other_env env rgenirpat typ with
+  | checked_rgenirpat, env, guards ->
+     let guard = match guard, guards with
+       | None, h::t -> Some (h,t)
+       | Some x, l -> Some (x,l)
+       | None, [] -> None
+     in
+     let guard = match guard with
+       | Some (h,t) ->
+          Some (List.fold_left (fun acc guard -> mk_exp (E_app_infix (acc, mk_id "&", guard))) h t)
+       | None -> None
+     in
+     let checked_guard, _ = match guard with
+       | None -> None, env
+       | Some guard ->
+          let checked_guard = check_exp env guard bool_typ in
+          Some checked_guard, env
+     in
+     let checked_exp = check_exp env exp typ in
+     construct_rgenir_pexp (checked_rgenirpat, checked_guard, checked_exp, (l, mk_expected_tannot env typ (Some typ)))
+
+and bind_rgenirpat allow_unknown other_env env (RGENIRP_aux (rgenirpat_aux, (l, tannot)) as rgenirpat) typ =
+  let typ, env = bind_existential l None typ env in
+  (*typ_print (lazy (Util.("Binding " |> yellow |> clear) ^ string_of_rgenirpat rgenirpat ^  " to " ^ string_of_typ typ));*)
+  let annot_rgenirpat rgenirpat typ' = RGENIRP_aux (rgenirpat, (l, mk_expected_tannot env typ' (Some typ))) in
+  let switch_typ rgenirpat typ = match rgenirpat with
+    | RGENIRP_aux (rgenirpat_aux, (l, Some tannot)) -> RGENIRP_aux (rgenirpat_aux, (l, Some { tannot with typ = typ }))
+    | _ -> typ_error l "Cannot switch type for unannotated mapping-pattern"
+  in
+  let bind_tuple_rgenirpat (tpats, env, guards) rgenirpat typ =
+    let tpat, env, guards' = bind_rgenirpat allow_unknown other_env env rgenirpat typ in tpat :: tpats, env, guards' @ guards
+  in
+  match rgenirpat_aux with
+  | RGENIRP_var (rgenirlit, rgeniratts) ->
+      let checked_rgenirlit = check_rgenirlit env rgenirlit typ in
+      let checked_rgeniratts = List.map (fun rgeniratt -> check_rgeniratt env rgeniratt typ) rgeniratts in
+      annot_rgenirpat (RGENIRP_var(checked_rgenirlit, checked_rgeniratts)) typ, env, []
 
 and check_mpexp other_env env mpexp typ =
   let mpat, guard, (l, _) = destruct_mpexp mpexp in
@@ -2658,42 +2698,6 @@ and expect_subtype env (E_aux (_, (l, _)) as annotated_exp) typ =
   typ_debug (lazy ("Expect subtype: from " ^ string_of_typ (typ_of annotated_exp) ^ " to " ^ string_of_typ typ));
   subtyp l env (typ_of annotated_exp) typ;
   add_expected annotated_exp
-
-and check_rgenir_pexp other_env env rgenir_pexp typ =
-  let rgenirpat,guard,exp,((l,_) as annot) = destruct_rgenir_pexp rgenir_pexp in
-  match bind_rgenirpat false other_env env rgenirpat typ with
-  | checked_rgenirpat, env, guards ->
-     let guard = match guard, guards with
-       | None, h::t -> Some (h,t)
-       | Some x, l -> Some (x,l)
-       | None, [] -> None
-     in
-     let guard = match guard with
-       | Some (h,t) ->
-          Some (List.fold_left (fun acc guard -> mk_exp (E_app_infix (acc, mk_id "&", guard))) h t)
-       | None -> None
-     in
-     let checked_guard, _ = match guard with
-       | None -> None, env
-       | Some guard ->
-          let checked_guard = check_exp env guard bool_typ in
-          Some checked_guard, env
-     in
-     let checked_exp = check_exp env exp typ in
-     construct_rgenir_pexp (checked_rgenirpat, checked_guard, checked_exp, (l, None))
-
-(* type_coercion env exp typ takes a fully annoted (i.e. already type
-   checked) expression exp, and attempts to cast (coerce) it to the
-   type typ by inserting a coercion function that transforms the
-   annotated expression into the correct type. Returns an annoted
-   expression consisting of a type coercion function applied to exp,
-   or throws a type error if the coercion cannot be performed. *)
-and type_coercion env (E_aux (_, (l, _)) as annotated_exp) typ =
-  let strip exp_aux = strip_exp (E_aux (exp_aux, (Parse_ast.Unknown, None))) in
-  let annot_exp exp typ' = E_aux (exp, (l, mk_expected_tannot env typ' (Some typ))) in
-  let switch_exp_typ exp = match exp with
-    | E_aux (exp, (l, Some tannot)) -> E_aux (exp, (l, Some { tannot with expected = Some typ }))
-    | _ -> failwith "Cannot switch type for unannotated function"
 
 (* can_unify_with env goals exp typ takes an annotated expression, and
    checks that its annotated type can unify with the provided type. *)
@@ -2954,6 +2958,7 @@ and bind_pat env (P_aux (pat_aux, (l, uannot)) as pat) typ =
           | _ -> raise typ_exn
         )
     )
+
 
 and infer_pat env (P_aux (pat_aux, (l, uannot)) as pat) =
   let annot_pat pat typ = P_aux (pat, (l, mk_tannot ~uannot env typ)) in
@@ -4442,22 +4447,7 @@ and infer_mpat allow_unknown other_env env (MP_aux (mpat_aux, (l, uannot)) as mp
       )
   | _ -> typ_error l ("Couldn't infer type of mapping-pattern " ^ string_of_mpat mpat)
 
-and bind_rgenirpat allow_unknown other_env env (RGENIRP_aux (rgenirpat_aux, (l, ())) as rgenirpat) typ =
-  let typ, env = bind_existential l None typ env in
-  (*typ_print (lazy (Util.("Binding " |> yellow |> clear) ^ string_of_rgenirpat rgenirpat ^  " to " ^ string_of_typ typ));*)
-  let annot_rgenirpat rgenirpat typ' = RGENIRP_aux (rgenirpat, (l, mk_expected_tannot env typ' (Some typ))) in
-  let switch_typ rgenirpat typ = match rgenirpat with
-    | RGENIRP_aux (rgenirpat_aux, (l, Some tannot)) -> RGENIRP_aux (rgenirpat_aux, (l, Some { tannot with typ = typ }))
-    | _ -> typ_error env l "Cannot switch type for unannotated mapping-pattern"
-  in
-  let bind_tuple_rgenirpat (tpats, env, guards) rgenirpat typ =
-    let tpat, env, guards' = bind_rgenirpat allow_unknown other_env env rgenirpat typ in tpat :: tpats, env, guards' @ guards
-  in
-  match rgenirpat_aux with
-  | RGENIRP_var (rgenirlit, rgeniratts) ->
-      let checked_rgenirlit = check_rgenirlit env rgenirlit typ in
-      let checked_rgeniratts = List.map (fun rgeniratt -> check_rgeniratt env rgeniratt typ) rgeniratts in
-      annot_rgenirpat (RGENIRP_var(checked_rgenirlit, checked_rgeniratts)) typ, env, []
+
 
 (**************************************************************************)
 (* 6. Effect system                                                       *)
@@ -4555,53 +4545,6 @@ let check_mapcl env (MCL_aux (cl, (def_annot, _))) typ =
     end
   | _ ->
       typ_error def_annot.loc ("Mapping clause must have mapping type: " ^ string_of_typ typ ^ " is not a mapping type")
-
-(*let check_rgenircl : 'a. Env.t -> 'a rgenircl -> typ -> tannot rgenircl =
-  fun env (RGENIRCL_aux (cl, (l, _))) typ ->
-    (*match typ with
-    | Typ_aux (Typ_exp (typ1)) -> begin*)
-        match cl with
-        | RGENIRCL_Rgenircl (id, rgenir_pexp) -> begin
-            let testing_env = Env.set_allow_unknowns true env in
-            let right_rgenirpat, _, _, _ = destruct_rgenir_pexp rgenir_pexp in
-            let _, right_id_env, _ = bind_rgenirpat true Env.empty testing_env (strip_rgenirpat right_rgenirpat) typ in
-
-            let typed_rgenir_pexp = check_rgenir_pexp right_id_env env (strip_rgenir_pexp rgenir_pexp) typ in
-            RGENIRCL_aux (RGENIRCL_Rgenircl (id, typed_rgenir_pexp), (l, mk_expected_tannot env typ (Some typ)))
-          end
-      (*end
-    | _ -> typ_error env l ("RGENIR clause must have rgenir type: " ^ string_of_typ typ ^ " is not a rgenir type")*)
-*)
-let check_rgenircl env (RGENIRCL_aux (RGENIRCL_Rgenircl (id, rgenir_pexp), (l, _))) typ =
-  match typ with
-  | Typ_aux (Typ_fn (typ_args, typ_ret), _) ->
-     begin
-       let typ_args = List.map implicit_to_int typ_args in
-       let env = Env.add_ret_typ typ_ret env in
-       (* We want to forbid polymorphic undefined values in all cases,
-          except when type checking the specific undefined_(type)
-          functions created by the -undefined_gen functions in
-          initial_check.ml. Only in these functions will the rewriter
-          be able to correctly re-write the polymorphic undefineds
-          (due to the specific form the functions have *)
-       let env =
-         if Str.string_match (Str.regexp_string "undefined_") (string_of_id id) 0
-         then Env.allow_polymorphic_undefineds env
-         else env
-       in
-       (* This is one of the cases where we are allowed to treat
-          function arguments as like a tuple, and maybe we
-          shouldn't. *)
-
-       let testing_env = Env.set_allow_unknowns true env in
-       let right_rgenirpat, _, _, _ = destruct_rgenir_pexp rgenir_pexp in
-       let _, right_id_env, _ = bind_rgenirpat true Env.empty testing_env (strip_rgenirpat right_rgenirpat) typ_ret in
-
-       let typed_rgenir_pexp = check_rgenir_pexp right_id_env env (strip_rgenir_pexp rgenir_pexp) typ_ret in
-
-       RGENIRCL_aux (RGENIRCL_Rgenircl (id, typed_rgenir_pexp), (l, mk_expected_tannot env typ (Some typ_ret)))
-     end
-  | _ -> typ_error env l ("RGENIR clause must have function type: " ^ string_of_typ typ ^ " is not a function type")
 
 let infer_funtyp l env tannotopt funcls =
   match tannotopt with
@@ -4837,14 +4780,6 @@ let check_mapdef env def_annot (MD_aux (MD_mapping (id, tannot_opt, mapcls), (l,
   ( vs_def @ [DEF_aux (DEF_mapdef (MD_aux (MD_mapping (id, empty_tannot_opt, mapcls), (l, empty_tannot))), def_annot)],
     env
   )
-
-let check_rgenirdef env (RGENIRD_aux (RGENIRD_cl (id, rgenircls), (l, _))) =
-  let typq, typ = Env.get_val_spec id env in
-  let rgenircl_env = Env.add_typquant l typq env in
-  let rgenircls = List.map(fun rgenircl -> check_rgenircl rgenircl_env rgenircl typ) rgenircls in
-  let env = Env.define_val_spec id env in
-  let vs_def = [] in
-  vs_def @ [DEF_rgenirdef (RGENIRD_aux (RGENIRD_cl (id, rgenircls), (l, None)))], env
 
 (* Checking a val spec simply adds the type as a binding in the context. *)
 let check_val_spec env def_annot (VS_aux (vs, (l, _))) =
@@ -5178,11 +5113,6 @@ and check_scattered : Env.t -> env def_annot -> uannot scattered_def -> typed_de
       ( [DEF_aux (DEF_scattered (SD_aux (SD_mapcl (id, mapcl), (l, empty_tannot))), def_annot)],
         Env.add_scattered_id id def_annot.attrs env
       )
-  | SD_rgenircl (id, rgenircl) ->
-     let typq, typ = Env.get_val_spec id env in
-     let rgenircl_env = Env.add_typquant l typq env in
-     let rgenircl = check_rgenircl rgenircl_env rgenircl typ in
-     [DEF_scattered (SD_aux (SD_rgenircl (id, rgenircl), (l, None)))], env
 
 and check_outcome : Env.t -> outcome_spec -> untyped_def list -> outcome_spec * typed_def list * Env.t =
  fun env (OV_aux (OV_outcome (id, typschm, params), l)) defs ->
@@ -5328,7 +5258,6 @@ and check_def : Env.t -> untyped_def -> typed_def list * Env.t =
   | DEF_fundef fdef -> check_fundef env def_annot fdef
   | DEF_mapdef mdef -> check_mapdef env def_annot mdef
   | DEF_impl funcl -> check_impldef env def_annot funcl
-  | DEF_rgenirdef (rgenirdef) -> check_rgenirdef env rgenirdef
   | DEF_internal_mutrec fdefs ->
       let defs = List.concat (List.map (fun fdef -> fst (check_fundef env def_annot fdef)) fdefs) in
       let split_fundef (defs, fdefs) def =

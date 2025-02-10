@@ -1828,29 +1828,34 @@ let rec to_ast_mapcl doc attrs ctx (P.MCL_aux (mapcl, l)) =
 let to_ast_rgenirlit ctx (P.RGENIRLit_aux(rgenirlit, l)) =
   RGENIRLit_aux(
     (match rgenirlit with
-    | P.RGENIRLit_string (s) -> RGENIRLit_string s
-    ), (l,()))
+    | P.RGENIRLit_string (s) -> RGENIRLit_string s), (l, empty_uannot))
 
 let to_ast_rgeniratt ctx (P.RGENIRatt_aux(rgeniratt, l)) =
   RGENIRatt_aux(
     (match rgeniratt with
     | P.RGENIRatt_id (id) -> RGENIRatt_id(to_ast_id ctx id)
     | P.RGENIRatt_ctor (id, id1, rgenirlit) -> RGENIRatt_ctor(to_ast_id ctx id, to_ast_id ctx id1, to_ast_rgenirlit ctx rgenirlit)
-    ), (l, ()))
+    ), (l, empty_uannot))
 
 let to_ast_rgenirpat ctx (P.RGENIRP_aux(rgenirpat, l)) =
   match rgenirpat with
-  | P.RGENIRP_var (rgenirlit, rgeniratts) -> RGENIRP_aux(RGENIRP_var(to_ast_rgenirlit ctx rgenirlit, List.map (to_ast_rgeniratt ctx) rgeniratts), (l, ()))
+  | P.RGENIRP_var (rgenirlit, rgeniratts) -> RGENIRP_aux(RGENIRP_var(to_ast_rgenirlit ctx rgenirlit, List.map (to_ast_rgeniratt ctx) rgeniratts), (l, empty_uannot))
 
 let to_ast_rgenir_pexp ctx (P.RGENIRPat_aux(rgenir_pexp, l)) =
   match rgenir_pexp with
-  | P.RGENIRPat_exp (rgenirpat, exp) -> RGENIRPat_aux(RGENIRPat_exp(to_ast_rgenirpat ctx rgenirpat, to_ast_exp ctx exp), (l,()))
+  | P.RGENIRPat_exp (rgenirpat, exp) ->
+  let exp = to_ast_exp ctx exp in 
+  let pat = to_ast_rgenirpat ctx rgenirpat in
+  RGENIRPat_aux(RGENIRPat_exp(pat, exp), (l, empty_uannot))
 
 let to_ast_rgenircl ctx (P.RGENIRCL_aux(rgenircl, l)) =
   match rgenircl with
-  | P.RGENIRCL_Rgenircl(id, rgenir_pexp) -> RGENIRCL_aux(RGENIRCL_Rgenircl(to_ast_id ctx id, to_ast_rgenir_pexp ctx rgenir_pexp ), (l, ()))
+  | P.RGENIRCL_Rgenircl(id, rgenir_pexp) ->
+  let id = to_ast_id ctx id in
+  let rgenir_pexp = to_ast_rgenir_pexp ctx rgenir_pexp in
+  RGENIRCL_aux(RGENIRCL_Rgenircl(id, rgenir_pexp), (l, empty_uannot))
 
-let to_ast_mapdef ctx (P.MD_aux(md,l):P.mapdef) : unit mapdef =
+let to_ast_mapdef ctx (P.MD_aux (md, l) : P.mapdef) : uannot mapdef =
   match md with
   | P.MD_mapping (id, typschm_opt, mapcls) ->
       let tannot_opt, ctx = to_ast_typschm_opt ctx typschm_opt in
@@ -1926,7 +1931,7 @@ let to_ast_scattered ctx (P.SD_aux (aux, l)) =
     | P.SD_rgenircl (id, rgenircl) ->
        let id = to_ast_id ctx id in
        let rgenircl = to_ast_rgenircl ctx rgenircl in
-       SD_rgenircl (id, rgenircl), ctx
+       (None, SD_rgenircl (id, rgenircl), ctx)
   in
   (extra_def, SD_aux (aux, (l, empty_uannot)), ctx)
 
@@ -2121,8 +2126,8 @@ let initial_ctx =
           ("float64", ([], P.K_type));
           ("float128", ([], P.K_type));
           ("float_rounding_mode", ([], P.K_type));
-          ("Tensor", [K_type]);
-          ("Scalar", [K_type]);
+          ("Tensor", ([], P.K_type));
+          ("Scalar", ([], P.K_type));
         ];
     function_type_variables = Bindings.empty;
     kinds = KBindings.empty;

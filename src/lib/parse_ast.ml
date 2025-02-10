@@ -277,36 +277,38 @@ type typschm_opt_aux = TypSchm_opt_none | TypSchm_opt_some of typschm
 
 type typschm_opt = TypSchm_opt_aux of typschm_opt_aux * l
 
-type rgenirlit_aux =
-  RGENIRLit_string of string
-
 type rgenirlit =
   RGENIRLit_aux of ( rgenirlit_aux) * l
 
-type rgeniratt_aux =
-    RGENIRatt_id of id
-  | RGENIRatt_ctor of id * id * rgenirlit
+and rgenirlit_aux =
+  RGENIRLit_string of string
 
 type rgeniratt =
   RGENIRatt_aux of ( rgeniratt_aux) * l
 
-type rgenirpat_aux =
-  RGENIRP_var of rgenirlit * ( rgeniratt) list
+and rgeniratt_aux =
+    RGENIRatt_id of id
+  | RGENIRatt_ctor of id * id * rgenirlit
 
 type rgenirpat =
   RGENIRP_aux of rgenirpat_aux * l
 
-type rgenirexp_aux =
-  RGENIRE of id
+and rgenirpat_aux =
+  RGENIRP_var of rgenirlit * ( rgeniratt) list
 
 type rgenirexp =
   RGENIRE_aux of rgenirexp_aux * l
 
-type rgenirpexp_aux =
-  RGENIRPat_exp of rgenirpat * exp
+and rgenirexp_aux =
+  RGENIRE of id
 
-type rgenir_pexp =
-  RGENIRPat_aux of rgenirpexp_aux * l
+type rgenir_pexp = RGENIRPat_aux of rgenirpexp_aux * l
+
+and rgenirpexp_aux = RGENIRPat_exp of rgenirpat * exp
+
+type rgenircl = RGENIRCL_aux of rgenircl_aux * l
+
+and rgenircl_aux = RGENIRCL_Rgenircl of id * rgenir_pexp
 
 type effect_opt_aux =
   | (* Optional effect annotation for functions *)
@@ -348,10 +350,6 @@ type subst_aux =
   | IS_typ of kid * atyp (* instantiate a type variable with a type *)
   | IS_id of id * id (* instantiate an identifier with another identifier *)
 
-type
-rgenircl_aux =  (* rgenir constructors *)
-  RGENIRCL_Rgenircl of id * rgenir_pexp
-
 type subst = IS_aux of subst_aux * l
 
 type index_range_aux =
@@ -388,9 +386,6 @@ type mpexp_aux = MPat_pat of mpat | MPat_when of mpat * exp
 
 type mpexp = MPat_aux of mpexp_aux * l
 
-type
-rgenircl =
-   RGENIRCL_aux of rgenircl_aux * l
 
 type mapcl = MCL_aux of mapcl_aux * l
 
@@ -443,6 +438,7 @@ type scattered_def_aux =
   | SD_unioncl of id * type_union (* scattered union definition member *)
   | SD_mapping of id * tannot_opt
   | SD_mapcl of id * mapcl
+  | SD_rgenircl of id * rgenircl
   | SD_end of id (* scattered definition end *)
 
 type default_typing_spec = DT_aux of default_typing_spec_aux * l

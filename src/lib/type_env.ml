@@ -87,6 +87,8 @@ type global_env = {
   unions : (typquant * type_union list) env_item Bindings.t;
   union_ids : (typquant * typ) env_item Bindings.t;
   scattered_union_envs : global_env Bindings.t;
+  rgenircl_variants : global_env Bindings.t;
+  scattered_rgenircl_variant_envs : global_env Bindings.t;
   abstract_typs : kind env_item Bindings.t;
   constraints : (constraint_reason * n_constraint) list;
   enums : (bool * IdSet.t) env_item Bindings.t;
@@ -350,8 +352,8 @@ let builtin_typs =
       ("atom", [K_int], K_type);
       ("implicit", [K_int], K_type);
       ("vector", [K_int; K_type], K_type);
-      ("Tensor", [K_type]);
-      ("Scalar", [K_type]);
+      ("Tensor", [K_type], K_type);
+      ("Scalar", [K_type], K_type);
       ("bitvector", [K_int], K_type);
       ("register", [K_type], K_type);
       ("bit", [], K_type);
@@ -1546,21 +1548,6 @@ let set_scattered_variant_env ~variant_env id env =
   update_global
     (fun global -> { global with scattered_union_envs = Bindings.add id variant_env.global global.scattered_union_envs })
     env
-
-let set_rgenircl_variant_clause id (rgenircl) env =
-  match Bindings.find_opt id env.rgenircl_variants with
-  | Some (typ, rgenircls) -> { env with rgenircl_variants = Bindings.add id (typ, rgenircls @ [rgenircl]) env.rgenircl_variants }
-  | None -> typ_error env (id_loc id) ("scattered rgenircl " ^ string_of_id id ^ " not found")
-
-let get_rgenircl_variant id env =
-  match Bindings.find_opt id env.rgenircl_variants with
-  | Some (typ, rgenircls) -> typ, rgenircls
-  | None -> typ_error env (id_loc id) ("rgenircl " ^ string_of_id id ^ " not found")
-
-let get_scattered_rgenircl_variant_env id env =
-  match Bindings.find_opt id env.scattered_rgenircl_variant_envs with
-  | Some env' -> env'
-  | None -> typ_error env (id_loc id) ("scattered rgenircl " ^ string_of_id id ^ " has not been declared")
 
 let is_register id env = Bindings.mem id env.global.registers
 

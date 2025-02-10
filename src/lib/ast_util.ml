@@ -931,6 +931,23 @@ and map_mapcl_annot f = function
   | MCL_aux (MCL_forwards pexp, annot) -> MCL_aux (MCL_forwards (map_pexp_annot f pexp), map_clause_annot f annot)
   | MCL_aux (MCL_backwards pexp, annot) -> MCL_aux (MCL_backwards (map_pexp_annot f pexp), map_clause_annot f annot)
 
+and map_rgenirlit_annot f (RGENIRLit_aux (rgenirlit, annot)) = RGENIRLit_aux (map_rgenirlit_annot_aux f rgenirlit, f annot)
+and map_rgenirlit_annot_aux f = function
+  | RGENIRLit_string str -> RGENIRLit_string str
+
+and map_rgeniratt_annot f (RGENIRatt_aux (rgeniratt, annot)) = RGENIRatt_aux (map_rgeniratt_annot_aux f rgeniratt, f annot)
+and map_rgeniratt_annot_aux f = function
+  | RGENIRatt_id id -> RGENIRatt_id id
+  | RGENIRatt_ctor (id, id1, rgenirlit) -> RGENIRatt_ctor (id, id1, map_rgenirlit_annot f rgenirlit)
+
+and map_rgenirpat_annot f (RGENIRP_aux (rgenirpat, annot)) = RGENIRP_aux (map_rgenirpat_annot_aux f rgenirpat, f annot)
+and map_rgenirpat_annot_aux f = function
+  | RGENIRP_var (rgenirlit, rgeniratts) -> RGENIRP_var (map_rgenirlit_annot f rgenirlit, List.map (map_rgeniratt_annot f) rgeniratts)
+
+and map_rgenir_pexp_annot f (RGENIRPat_aux (rgenir_pexp, annot)) = RGENIRPat_aux (map_rgenir_pexp_annot_aux f rgenir_pexp, f annot)
+and map_rgenir_pexp_annot_aux f = function
+  | RGENIRPat_exp (rgenirpat, exp) -> RGENIRPat_exp (map_rgenirpat_annot f rgenirpat, map_exp_annot f exp)
+
 and map_rgenircl_annot f = function
   | (RGENIRCL_aux (RGENIRCL_Rgenircl (id, rgenir_pexp), annot)) ->
      RGENIRCL_aux (RGENIRCL_Rgenircl (id, map_rgenir_pexp_annot f rgenir_pexp), f annot)
@@ -1066,26 +1083,6 @@ let rec map_def_def_annot f (DEF_aux (aux, annot)) =
     | DEF_pragma (name, arg, l) -> DEF_pragma (name, arg, l)
   in
   DEF_aux (aux, f annot)
-
-and map_rgenirlit_annot f (RGENIRLit_aux (rgenirlit, annot)) = RGENIRLit_aux (map_rgenirlit_annot_aux f rgenirlit, f annot)
-and map_rgenirlit_annot_aux f = function
-  | RGENIRLit_string str -> RGENIRLit_string str
-
-and map_rgeniratt_annot f (RGENIRatt_aux (rgeniratt, annot)) = RGENIRatt_aux (map_rgeniratt_annot_aux f rgeniratt, f annot)
-and map_rgeniratt_annot_aux f = function
-  | RGENIRatt_id id -> RGENIRatt_id id
-  | RGENIRatt_ctor (id, id1, rgenirlit) -> RGENIRatt_ctor (id, id1, map_rgenirlit_annot f rgenirlit)
-
-and map_rgenirpat_annot f (RGENIRP_aux (rgenirpat, annot)) = RGENIRP_aux (map_rgenirpat_annot_aux f rgenirpat, f annot)
-and map_rgenirpat_annot_aux f = function
-  | RGENIRP_var (rgenirlit, rgeniratts) -> RGENIRP_var (map_rgenirlit_annot f rgenirlit, List.map (map_rgeniratt_annot f) rgeniratts)
-
-and map_rgenir_pexp_annot f (RGENIRPat_aux (rgenir_pexp, annot)) = RGENIRPat_aux (map_rgenir_pexp_annot_aux f rgenir_pexp, f annot)
-and map_rgenir_pexp_annot_aux f = function
-  | RGENIRPat_exp (rgenirpat, exp) -> RGENIRPat_exp (map_rgenirpat_annot f rgenirpat, map_exp_annot f exp)
-
-and map_loop_measure_annot f = function
-  | Loop (loop, exp) -> Loop (loop, map_exp_annot f exp)
 
 let def_loc (DEF_aux (_, annot)) = annot.loc
 
@@ -1470,9 +1467,7 @@ let id_of_scattered (SD_aux (sdef, _)) =
   | SD_enum id
   | SD_enumcl (id, _) ->
       id
-  | SD_function (_, _, id)  | SD_funcl (FCL_aux (FCL_Funcl (id, _), _)) | SD_end id
-    | SD_variant (id, _) | SD_unioncl (id, _)
-    | SD_mapping (id, _) | SD_mapcl (id, _) -> id | SD_rgenircl (id, _) -> id
+  | SD_rgenircl (id, _) -> id
 
 let ids_of_def (DEF_aux (aux, _)) =
   match aux with

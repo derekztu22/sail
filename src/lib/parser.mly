@@ -145,29 +145,6 @@ let mk_forwards_mapcl pexp n m = MCL_aux (MCL_forwards pexp, loc n m)
 let mk_backwards_mapcl pexp n m = MCL_aux (MCL_backwards pexp, loc n m)
 let mk_map id tannot mapcls n m = MD_aux (MD_mapping (id, tannot, mapcls), loc n m)
 
-let doc_funcl doc (FCL_aux (f, l)) = FCL_aux (f, doc_loc doc l)
-let doc_fun doc (FD_aux (fn, l)) = FD_aux (fn, doc_loc doc l)
-let doc_td doc (TD_aux (t, l)) = TD_aux (t, doc_loc doc l)
-let doc_vs doc (VS_aux (v, l)) = VS_aux (v, doc_loc doc l)
-let doc_reg_dec doc (DEC_aux (d, l)) = DEC_aux (d, doc_loc doc l)
-let doc_mapcl doc (MCL_aux (d, l)) = MCL_aux (d, doc_loc doc l)
-let doc_map doc (MD_aux (m, l)) = MD_aux (m, doc_loc doc l)
-let doc_tu doc (Tu_aux (tu, l)) = Tu_aux (tu, doc_loc doc l)
-let doc_rgenir doc (RGENIRCL_aux (rgenircl, l)) = RGENIRCL_aux (rgenircl, doc_loc doc l)
-let doc_id doc (Id_aux (id, l)) = Id_aux (id, doc_loc doc l)
-
-let doc_sd doc (SD_aux (sd, l)) =
-  match sd with
-  | SD_funcl fcl -> SD_aux (SD_funcl (doc_funcl doc fcl), l)
-  | SD_unioncl (id, tu) -> SD_aux (SD_unioncl (id, doc_tu doc tu), l)
-  | SD_mapcl (id, mcl) -> SD_aux (SD_mapcl (id, doc_mapcl doc mcl), l)
-  | SD_rgenircl (id, rgenircl) -> SD_aux (SD_rgenircl (id, doc_rgenir doc rgenircl), l)
-
-  | SD_function _
-  | SD_variant _
-  | SD_mapping _
-  | SD_end _ -> SD_aux (sd, doc_loc doc l)
-
 let qi_id_of_kopt (KOpt_aux (_, l) as kopt) = QI_aux (QI_id kopt, l)
 
 let mk_recr r n m = Rec_aux (r, loc n m)
